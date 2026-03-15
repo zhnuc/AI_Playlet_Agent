@@ -1,0 +1,46 @@
+# Python cache and build artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.python/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs and local runtime files
+*.log
+*.pid
+
+# Local environment files
+.env
+.env.*
+
+# Project-specific local instructions should stay out of git
+AGENTS.md
+tasks/
+findings.md
+
+# Keep docs tracked
+!docs/
+!docs/**
