@@ -1,3 +1,6 @@
+# 该文件保存项目当前使用的全局剧设与角色底稿。
+# 包括题材、故事核、角色 roster 等固定配置，
+# 供 planner、上下文构造和主循环初始化时统一读取。
 global_config={"drama_settings":{"theme":"复仇",
                                  "target_audience":"女性向",
                                  "expected_episodes":5},
