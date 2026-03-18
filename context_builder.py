@@ -51,7 +51,7 @@ def build_role_context(
     episode_plan: dict,
     history_window: int = 6,
 ) -> str:
-    """构造当前角色的一轮工作上下文。"""
+    """构造当前角色的一轮工作上下文 working context。"""
     role_memory = runtime_state.role_memories[role_name]
     recent_events = get_recent_visible_events(role_name, runtime_state, history_window)
     role_profile = format_role_profile(runtime_state, role_name)

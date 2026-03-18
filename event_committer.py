@@ -1,5 +1,6 @@
 # 该文件负责把角色单轮输出提交为剧情事件。
 # 它会拆分 thought、action、dialogue 三类内容，
+#* 规定：thought -> 只自己可见； action/dialogue -> 场上所有 scene_roles 可见。
 # 并同步更新全局事件日志和各角色的私有可见历史。
 from story_state import Event, RuntimeState
 

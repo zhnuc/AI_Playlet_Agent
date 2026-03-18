@@ -1,5 +1,5 @@
 # 该文件定义剧情运行期的核心状态结构。
-# 包括事件、角色记忆、全局故事上下文和运行时状态，
+#* 包括事件、角色记忆、全局故事上下文和运行时状态，
 # 供主循环、日志和上下文管理模块共享使用。
 from dataclasses import dataclass, field
 from typing import Any
@@ -73,7 +73,7 @@ def build_role_memories(global_config: dict[str, Any], episode_plan: dict[str, A
 
 
 def create_runtime_state(global_config: dict[str, Any], planner_output: dict[str, Any], episode: int) -> RuntimeState:
-    """创建单集运行所需的初始状态。"""
+    """创建单集运行所需的初始状态 runtime-state。"""
     episode_plan = get_episode_plan(planner_output, episode)
     story = StoryContext(
         drama_settings=global_config["drama_settings"],

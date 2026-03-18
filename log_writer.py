@@ -1,6 +1,7 @@
 # 该文件负责将单集运行过程写入结构化日志。
 # 它独立于主流程维护 episode 级 JSON 文件，
 # 用于保存场景信息、逐轮角色输出和最终运行结果。
+#* 工具函数，记录：初始化场景信息、每轮角色输出、最终结果
 import json
 from pathlib import Path
 from typing import Any

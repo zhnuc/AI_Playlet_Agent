@@ -1,4 +1,6 @@
 # 该文件实现最小化的说话人调度规则。
+#* 判断 next_speaker 是否合法并给出下一位角色或结束信号
+#* 待扩展：处理 冲突/并发 情况
 # 它负责识别 `end` 信号、校验下一位发言角色是否合法，
 # 并在必要时提供简单的 fallback 路由结果。
 def is_end_signal(next_speaker: str | None) -> bool:

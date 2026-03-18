@@ -1,5 +1,5 @@
 # 该文件集中管理 prompt 文本的构造逻辑。
-# 当前主要负责生成总策划 agent 使用的分集规划提示词，
+#* 当前主要负责生成总策划 planner agent 使用的分集规划提示词，
 # 并把角色卡与单场景约束组织成稳定的输入模板。
 from global_config import global_config
 
@@ -70,4 +70,5 @@ def build_planner_agent_prompt(global_config: dict) -> str:
 
 
 chara_text = build_chara(global_config)
-planner_agent_prompt = build_planner_agent_prompt(global_config)
+# 输出 episode plan
+planner_agent_prompt = build_planner_agent_prompt(global_config) 

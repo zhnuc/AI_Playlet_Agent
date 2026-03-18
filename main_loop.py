@@ -16,7 +16,7 @@ def run_episode(
     planner_output: dict,
     role_agent_box: Role_Agent_Box,
     episode: int,
-    history_window: int = 6,
+    history_window: int = 6, # 默认只保留最近 6 轮发言的对话内容
     max_turns: int = 8,
 ) -> dict:
     """运行单集单场景的最小主循环。"""
@@ -27,13 +27,17 @@ def run_episode(
     turn_trace: list[dict] = []
     log_path = initialize_episode_log(runtime_state, episode_plan)
 
+    #* 每一轮循环就是一个 agent 的 turn
     for _ in range(max_turns):
+        # 构造当前角色的输入
         prompt = build_role_context(
             current_speaker,
             runtime_state,
             episode_plan,
             history_window=history_window,
         )
+        # 调用 agent llm，生成这一轮输出
+        # 返回 thought + action + dialogue + next_speaker 4 个字段内容
         turn_output = role_agent_box.generate_role_response(current_speaker, prompt)
         if isinstance(turn_output, str):
             finalize_episode_log(
@@ -48,8 +52,9 @@ def run_episode(
                 "last_speaker": current_speaker,
                 "turn_trace": turn_trace,
             }
-
+        # 将这一轮输出提交到状态，更新 runtime_state
         commit_turn_result(runtime_state, current_speaker, turn_output)
+        # 读取模型提议的下一位 speaker
         proposed_next_speaker = turn_output.get("next_speaker")
         turn_record = {
             "step": runtime_state.story.current_turn,
@@ -57,8 +62,8 @@ def run_episode(
             "proposed_next_speaker": proposed_next_speaker,
         }
 
-        if is_end_signal(proposed_next_speaker):
-            if should_end_episode(runtime_state):
+        if is_end_signal(proposed_next_speaker): # 角色申请结束本集剧情
+            if should_end_episode(runtime_state): # 交由 director 判断
                 turn_record["resolved_next_speaker"] = "end"
                 turn_record["status"] = "ended"
                 turn_trace.append(turn_record)
@@ -84,7 +89,7 @@ def run_episode(
                     "turn_trace": turn_trace,
                 }
             proposed_next_speaker = None
-
+        # 解析下一位 speaker
         next_speaker = resolve_next_speaker(
             current_speaker=current_speaker,
             proposed_next_speaker=proposed_next_speaker,
@@ -133,7 +138,7 @@ def run_episode(
         "turn_trace": turn_trace,
     }
 
-
+# test
 def run_demo_episode(episode: int = 1) -> dict:
     """用真实模型调用跑通单集 demo。"""
     base_url, api_key, model = load_env()
