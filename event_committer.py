@@ -2,7 +2,10 @@
 # 它会拆分 thought、action、dialogue 三类内容，
 #* 规定：thought -> 只自己可见； action/dialogue -> 场上所有 scene_roles 可见。
 # 并同步更新全局事件日志和各角色的私有可见历史。
-from story_state import Event, RuntimeState
+from typing import Any
+
+from Agent_model import Summary_Agent, is_valid_summary_response
+from story_state import Event, RuntimeState, get_event_by_id
 
 
 def build_event_id(runtime_state: RuntimeState) -> str:
@@ -78,3 +81,94 @@ def commit_turn_result(runtime_state: RuntimeState, speaker: str, turn_output: d
         committed_events.append(event)
 
     return committed_events
+
+
+def get_role_visible_events(role_name: str, runtime_state: RuntimeState) -> list[Event]:
+    """按角色 private_history 回查其当前集可见事件。"""
+    events: list[Event] = []
+    for event_id in runtime_state.role_memories[role_name].private_history:
+        event = get_event_by_id(runtime_state, event_id)
+        if event is not None:
+            events.append(event)
+    return events
+
+
+def serialize_events_for_summary(events: list[Event]) -> list[dict[str, Any]]:
+    """将事件对象整理为摘要 agent 可消费的结构化输入。"""
+    return [
+        {
+            "event_id": event.event_id,
+            "step": event.step,
+            "kind": event.kind,
+            "speaker": event.speaker,
+            "content": event.content,
+        }
+        for event in events
+    ]
+
+
+def build_role_summary_input(role_name: str, runtime_state: RuntimeState) -> dict[str, Any]:
+    """整理单角色的摘要输入载荷。"""
+    role_memory = runtime_state.role_memories[role_name]
+    visible_events = get_role_visible_events(role_name, runtime_state)
+    return {
+        "role_name": role_name,
+        "episode": runtime_state.story.current_episode,
+        "scene": runtime_state.story.current_scene,
+        "current_goal": role_memory.current_goal,
+        "carryover_summary": role_memory.carryover_summary,
+        "beliefs_about_others": dict(role_memory.beliefs_about_others),
+        "unresolved_hook": role_memory.unresolved_hook,
+        "visible_events": serialize_events_for_summary(visible_events),
+    }
+
+
+def apply_summary_to_role_memory(role_name: str, runtime_state: RuntimeState, summary_payload: dict[str, Any]) -> None:
+    """将合法摘要结果回写到对应角色记忆中。"""
+    role_memory = runtime_state.role_memories[role_name]
+    visible_events = get_role_visible_events(role_name, runtime_state)
+    summary_text = summary_payload.get("carryover_summary", "").strip()
+    current_goal = summary_payload.get("current_goal", "").strip()
+
+    role_memory.private_summary = summary_text
+    role_memory.summary_until_event_id = visible_events[-1].event_id if visible_events else None
+    role_memory.carryover_summary = summary_text
+    if current_goal:
+        role_memory.current_goal = current_goal
+    role_memory.beliefs_about_others = dict(summary_payload.get("beliefs_about_others", {}))
+    role_memory.unresolved_hook = summary_payload.get("unresolved_hook", "").strip()
+
+
+def finalize_role_memories_for_next_episode(
+    runtime_state: RuntimeState,
+    summary_agent: Summary_Agent | None,
+) -> dict[str, str]:
+    """在 episode 收尾阶段统一生成并回写角色跨集记忆。"""
+    roles_to_summarize = [
+        role_name
+        for role_name, role_memory in runtime_state.role_memories.items()
+        if role_memory.private_history
+    ]
+    if not roles_to_summarize:
+        return {}
+    if summary_agent is None:
+        return {role_name: "summary_agent_missing" for role_name in roles_to_summarize}
+
+    summary_inputs = {
+        role_name: build_role_summary_input(role_name, runtime_state)
+        for role_name in roles_to_summarize
+    }
+    summary_result = summary_agent.generate_role_summaries(summary_inputs)
+    if isinstance(summary_result, str):
+        return {role_name: summary_result for role_name in roles_to_summarize}
+
+    summary_status: dict[str, str] = {}
+    for role_name in roles_to_summarize:
+        summary_payload = summary_result.get(role_name)
+        if not isinstance(summary_payload, dict) or not is_valid_summary_response(summary_payload):
+            summary_status[role_name] = "schema_error"
+            continue
+        apply_summary_to_role_memory(role_name, runtime_state, summary_payload)
+        summary_status[role_name] = "updated"
+
+    return summary_status

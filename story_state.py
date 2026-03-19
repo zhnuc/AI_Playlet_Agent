@@ -4,6 +4,8 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+DEFAULT_ROLE_GOAL = "根据当前场景自然推进剧情"
+
 
 @dataclass
 class Event:
@@ -25,8 +27,11 @@ class RoleMemory:
 
     private_history: list[str] = field(default_factory=list)
     private_summary: str = ""
+    summary_until_event_id: str | None = None
+    carryover_summary: str = ""
     current_goal: str = ""
     beliefs_about_others: dict[str, str] = field(default_factory=dict)
+    unresolved_hook: str = ""
 
 
 @dataclass
@@ -59,20 +64,58 @@ def get_episode_plan(planner_output: dict[str, Any], episode: int) -> dict[str, 
     return episodes[episode - 1]
 
 
-def build_role_memories(global_config: dict[str, Any], episode_plan: dict[str, Any]) -> dict[str, RoleMemory]:
+def merge_current_goal(previous_goal: str, episode_directive: str) -> str:
+    """合并上一集遗留目标与本集角色指令。"""
+    cleaned_previous_goal = previous_goal.strip()
+    cleaned_episode_directive = episode_directive.strip() or DEFAULT_ROLE_GOAL
+
+    if cleaned_previous_goal and cleaned_episode_directive and cleaned_episode_directive != DEFAULT_ROLE_GOAL:
+        if cleaned_previous_goal == cleaned_episode_directive:
+            return cleaned_previous_goal
+        return f"延续目标：{cleaned_previous_goal}；本集要求：{cleaned_episode_directive}"
+
+    if cleaned_previous_goal:
+        return cleaned_previous_goal
+
+    return cleaned_episode_directive
+
+
+def inherit_role_memory(previous_memory: RoleMemory, episode_directive: str) -> RoleMemory:
+    """基于上一集记忆构造下一集初始角色状态。"""
+    return RoleMemory(
+        carryover_summary=previous_memory.carryover_summary,
+        current_goal=merge_current_goal(previous_memory.current_goal, episode_directive),
+        beliefs_about_others=dict(previous_memory.beliefs_about_others),
+        unresolved_hook=previous_memory.unresolved_hook,
+    )
+
+
+def build_role_memories(
+    global_config: dict[str, Any],
+    episode_plan: dict[str, Any],
+    previous_role_memories: dict[str, RoleMemory] | None = None,
+) -> dict[str, RoleMemory]:
     """根据角色表和单集指令初始化角色记忆。"""
     directives = episode_plan.get("character_directives", {})
     role_memories: dict[str, RoleMemory] = {}
 
     for role_name in global_config["character_roster"]:
-        role_memories[role_name] = RoleMemory(
-            current_goal=directives.get(role_name, "根据当前场景自然推进剧情"),
-        )
+        role_directive = directives.get(role_name, DEFAULT_ROLE_GOAL)
+        if previous_role_memories and role_name in previous_role_memories:
+            role_memories[role_name] = inherit_role_memory(previous_role_memories[role_name], role_directive)
+            continue
+
+        role_memories[role_name] = RoleMemory(current_goal=role_directive)
 
     return role_memories
 
 
-def create_runtime_state(global_config: dict[str, Any], planner_output: dict[str, Any], episode: int) -> RuntimeState:
+def create_runtime_state(
+    global_config: dict[str, Any],
+    planner_output: dict[str, Any],
+    episode: int,
+    previous_role_memories: dict[str, RoleMemory] | None = None,
+) -> RuntimeState:
     """创建单集运行所需的初始状态 runtime-state。"""
     episode_plan = get_episode_plan(planner_output, episode)
     story = StoryContext(
@@ -83,7 +126,7 @@ def create_runtime_state(global_config: dict[str, Any], planner_output: dict[str
         current_scene=episode_plan["place"],
         scene_roles=episode_plan["scene_roles"],
     )
-    role_memories = build_role_memories(global_config, episode_plan)
+    role_memories = build_role_memories(global_config, episode_plan, previous_role_memories=previous_role_memories)
     return RuntimeState(story=story, role_memories=role_memories)
 
 
