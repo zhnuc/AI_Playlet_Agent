@@ -57,6 +57,30 @@ class RuntimeState:
     role_memories: dict[str, RoleMemory]
 
 
+@dataclass
+class SeasonContext:
+    """定义整季运行期间的共享上下文。"""
+
+    planner_baseline: dict[str, Any]
+    run_id: str
+    completed_episode_numbers: list[int] = field(default_factory=list)
+    season_stats: dict[str, Any] = field(
+        default_factory=lambda: {
+            "planned_episode_count": 0,
+            "completed_episode_count": 0,
+            "successful_episode_count": 0,
+            "failed_episode_count": 0,
+            "episode_status_map": {},
+            "episode_status_counts": {},
+            "total_turns": 0,
+            "average_turns_per_episode": 0.0,
+            "summary_status_counts": {},
+            "completed_all_planned_episodes": False,
+        }
+    )
+    checkpoint_index: dict[str, str] = field(default_factory=dict)
+
+
 def get_episode_plan(planner_output: dict[str, Any], episode: int) -> dict[str, Any]:
     """读取指定集数的分集计划。"""
     episodes = planner_output.get("episodes", [])
@@ -130,6 +154,50 @@ def create_runtime_state(
     )
     role_memories = build_role_memories(global_config, episode_plan, previous_role_memories=previous_role_memories)
     return RuntimeState(story=story, role_memories=role_memories)
+
+
+def create_season_context(planner_output: dict[str, Any], run_id: str) -> SeasonContext:
+    """创建整季运行使用的最薄 SeasonContext。"""
+    season_context = SeasonContext(
+        planner_baseline=planner_output,
+        run_id=run_id,
+    )
+    season_context.season_stats["planned_episode_count"] = len(planner_output.get("episodes", []))
+    return season_context
+
+
+def update_season_context(
+    season_context: SeasonContext,
+    episode: int,
+    episode_status: str,
+    total_turns: int,
+    summary_status: dict[str, str],
+    episode_succeeded: bool,
+) -> None:
+    """在单集结束后更新 season 级共享状态。"""
+    if episode not in season_context.completed_episode_numbers:
+        season_context.completed_episode_numbers.append(episode)
+    stats = season_context.season_stats
+    stats["completed_episode_count"] = len(season_context.completed_episode_numbers)
+    stats["episode_status_map"][str(episode)] = episode_status
+    stats["episode_status_counts"][episode_status] = stats["episode_status_counts"].get(episode_status, 0) + 1
+    stats["total_turns"] += total_turns
+    stats["average_turns_per_episode"] = (
+        stats["total_turns"] / stats["completed_episode_count"]
+        if stats["completed_episode_count"]
+        else 0.0
+    )
+    if episode_succeeded:
+        stats["successful_episode_count"] += 1
+    else:
+        stats["failed_episode_count"] += 1
+
+    for role_status in summary_status.values():
+        stats["summary_status_counts"][role_status] = stats["summary_status_counts"].get(role_status, 0) + 1
+
+    stats["completed_all_planned_episodes"] = (
+        stats["completed_episode_count"] == stats["planned_episode_count"]
+    )
 
 
 def get_event_by_id(runtime_state: RuntimeState, event_id: str) -> Event | None:

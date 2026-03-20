@@ -3,10 +3,12 @@
 # 用于保存场景信息、逐轮角色输出和最终运行结果。
 #* 工具函数，记录：初始化场景信息、每轮角色输出、最终结果
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
-from story_state import Event, RoleMemory, RuntimeState
+from story_state import Event, RoleMemory, RuntimeState, SeasonContext
 
 
 def build_episode_log_path(episode: int, log_dir: str = "log") -> Path:
@@ -16,12 +18,38 @@ def build_episode_log_path(episode: int, log_dir: str = "log") -> Path:
     return log_path / f"episode_{episode:02d}_trace.json"
 
 
-def write_episode_log(log_path: Path, payload: dict[str, Any]) -> None:
-    """将日志对象写入 JSON 文件。"""
-    log_path.write_text(
+def generate_run_id() -> str:
+    """生成 season 级运行编号，避免多次运行互相覆盖。"""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    return f"{timestamp}_{uuid4().hex[:8]}"
+
+
+def write_json_file(file_path: Path, payload: dict[str, Any]) -> None:
+    """将任意 JSON 对象写入指定文件。"""
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    file_path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+
+def initialize_season_log_directory(
+    planner_output: dict[str, Any],
+    log_dir: str = "log",
+    run_id: str | None = None,
+) -> tuple[str, Path]:
+    """初始化 season 级日志目录，并保存本次运行的原始 planner 输出。"""
+    resolved_run_id = run_id or generate_run_id()
+    season_log_dir = Path(log_dir) / "season_runs" / resolved_run_id
+    season_log_dir.mkdir(parents=True, exist_ok=True)
+    (season_log_dir / "checkpoints").mkdir(parents=True, exist_ok=True)
+    write_json_file(season_log_dir / "planner_output.json", planner_output)
+    return resolved_run_id, season_log_dir
+
+
+def write_episode_log(log_path: Path, payload: dict[str, Any]) -> None:
+    """将日志对象写入 JSON 文件。"""
+    write_json_file(log_path, payload)
 
 
 def read_episode_log(log_path: Path) -> dict[str, Any]:
@@ -63,6 +91,43 @@ def serialize_role_memories(role_memories: dict[str, RoleMemory]) -> dict[str, d
         role_name: serialize_role_memory(role_memory)
         for role_name, role_memory in role_memories.items()
     }
+
+
+def serialize_season_context(season_context: SeasonContext) -> dict[str, Any]:
+    """将 SeasonContext 整理为可直接落盘的 JSON 结构。"""
+    return {
+        "planner_baseline": dict(season_context.planner_baseline),
+        "run_id": season_context.run_id,
+        "completed_episode_numbers": list(season_context.completed_episode_numbers),
+        "season_stats": dict(season_context.season_stats),
+        "checkpoint_index": dict(season_context.checkpoint_index),
+    }
+
+
+def write_season_context(season_log_dir: str | Path, season_context: SeasonContext) -> Path:
+    """将当前 season shared state 写入独立 JSON 文件。"""
+    season_log_dir_path = Path(season_log_dir)
+    season_context_path = season_log_dir_path / "season_context.json"
+    write_json_file(season_context_path, serialize_season_context(season_context))
+    return season_context_path
+
+
+def write_episode_checkpoint(
+    season_log_dir: str | Path,
+    episode: int,
+    checkpoint_payload: dict[str, Any],
+) -> Path:
+    """将指定集数的 checkpoint 写入 season 目录下的 checkpoints 子目录。"""
+    checkpoint_path = Path(season_log_dir) / "checkpoints" / f"episode_{episode:02d}_checkpoint.json"
+    write_json_file(checkpoint_path, checkpoint_payload)
+    return checkpoint_path
+
+
+def write_season_summary(season_log_dir: str | Path, season_summary: dict[str, Any]) -> Path:
+    """将 season 级统计汇总写入独立 JSON 文件。"""
+    season_summary_path = Path(season_log_dir) / "season_summary.json"
+    write_json_file(season_summary_path, season_summary)
+    return season_summary_path
 
 
 def initialize_episode_log(

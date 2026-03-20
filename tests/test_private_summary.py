@@ -7,7 +7,7 @@ from pathlib import Path
 from context_builder import build_role_context
 from event_committer import append_event, finalize_role_memories_for_next_episode
 from global_config import global_config
-from main_loop import run_episode
+from main_loop import run_episode, run_season
 from story_state import Event, RoleMemory, create_runtime_state
 
 
@@ -412,6 +412,228 @@ class PrivateSummaryFlowTest(unittest.TestCase):
             log_payload["result"]["final_role_memories"]["顾寒霆"]["carryover_summary"],
             "顾寒霆决定先稳住局面。",
         )
+
+    def test_run_season_defaults_to_cross_episode_continuity(self):
+        """验证 run_season 默认承接上一集角色记忆，并让第二集 prompt 看到跨集摘要。"""
+        role_agent = FakeRoleAgent(
+            [
+                {
+                    "Inner_Thought": "我先试探顾寒霆的反应。",
+                    "Action": "林若雪把文件放到桌上。",
+                    "Dialogue": "你最好现在就给我一个态度。",
+                    "next_speaker": None,
+                },
+                {
+                    "Inner_Thought": "上一集已经把他逼到犹豫边缘。",
+                    "Action": "林若雪继续前压。",
+                    "Dialogue": "这一次，你没有退路了。",
+                    "next_speaker": None,
+                },
+            ]
+        )
+        summary_agent = FakeSummaryAgent(
+            {
+                "林若雪": {
+                    "carryover_summary": "林若雪已经逼出顾寒霆的迟疑。",
+                    "current_goal": "继续逼顾寒霆公开站队。",
+                    "beliefs_about_others": {"顾寒霆": "已经开始松动"},
+                    "unresolved_hook": "顾寒霆何时公开翻脸",
+                },
+                "顾寒霆": {
+                    "carryover_summary": "顾寒霆意识到林若雪并非虚张声势。",
+                    "current_goal": "继续观察林若雪手里的证据。",
+                    "beliefs_about_others": {"林若雪": "手里确实有筹码"},
+                    "unresolved_hook": "是否要私下调查林白莲",
+                },
+            }
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            season_result = run_season(
+                self.planner_output,
+                role_agent,
+                summary_agent=summary_agent,
+                max_turns=1,
+                log_dir=temp_dir,
+            )
+            self.assertEqual(season_result["status"], "completed")
+            self.assertTrue(season_result["run_id"])
+            self.assertEqual(season_result["completed_episode_numbers"], [1, 2])
+            self.assertEqual(len(season_result["episode_results"]), 2)
+            season_log_dir = Path(season_result["season_log_dir"])
+            self.assertTrue((season_log_dir / "planner_output.json").exists())
+            self.assertTrue((season_log_dir / "season_context.json").exists())
+            self.assertTrue((season_log_dir / "season_summary.json").exists())
+            self.assertTrue((season_log_dir / "episode_01_trace.json").exists())
+            self.assertTrue((season_log_dir / "episode_02_trace.json").exists())
+            self.assertTrue((season_log_dir / "checkpoints" / "episode_01_checkpoint.json").exists())
+            self.assertTrue((season_log_dir / "checkpoints" / "episode_02_checkpoint.json").exists())
+            season_context_payload = json.loads(
+                (season_log_dir / "season_context.json").read_text(encoding="utf-8")
+            )
+            season_summary_payload = json.loads(
+                (season_log_dir / "season_summary.json").read_text(encoding="utf-8")
+            )
+            episode_one_checkpoint = json.loads(
+                (season_log_dir / "checkpoints" / "episode_01_checkpoint.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(season_result["season_context"]["completed_episode_numbers"], [1, 2])
+            self.assertEqual(
+                season_result["season_context"]["season_stats"]["episode_status_map"],
+                {"1": "max_turns_reached", "2": "max_turns_reached"},
+            )
+            self.assertEqual(
+                season_context_payload["season_stats"]["episode_status_map"],
+                {"1": "max_turns_reached", "2": "max_turns_reached"},
+            )
+            self.assertEqual(season_summary_payload["successful_episode_count"], 2)
+            self.assertEqual(season_summary_payload["failed_episode_count"], 0)
+            self.assertTrue(season_summary_payload["completed_all_planned_episodes"])
+            self.assertEqual(episode_one_checkpoint["completed_episode"], 1)
+            self.assertEqual(episode_one_checkpoint["remaining_episode_numbers"], [2])
+            self.assertIn("replan_context_stub", episode_one_checkpoint)
+            self.assertIn("planner_baseline", season_result["season_context"])
+            self.assertNotIn("carryover_summary", season_result["season_context"])
+        second_prompt = role_agent.prompts[1][1]
+        self.assertIn("林若雪已经逼出顾寒霆的迟疑", second_prompt)
+        self.assertIn("已经开始松动", second_prompt)
+        self.assertNotIn("Fallback Memory", second_prompt)
+
+    def test_run_season_stops_after_failed_episode(self):
+        """验证某一集失败后，run_season 会停止后续集执行并返回失败原因。"""
+        planner_output = copy.deepcopy(self.planner_output)
+        planner_output["episodes"].append(
+            {
+                "episode_number": 3,
+                "place": "林家花园",
+                "scene_roles": ["林若雪", "顾寒霆"],
+                "first_speaker": "林若雪",
+                "global_plot": "第三集不应被执行。",
+                "core_conflict": "该集只用于验证失败后停止。",
+                "plot_twist_or_hook": "不应进入该集。",
+                "character_directives": {
+                    "林若雪": "如果进入这一集，说明 season 没有正确停止。",
+                    "顾寒霆": "如果进入这一集，说明 season 没有正确停止。",
+                },
+            }
+        )
+        role_agent = FakeRoleAgent(
+            [
+                {
+                    "Inner_Thought": "第一集先把气势拿住。",
+                    "Action": "林若雪直视顾寒霆。",
+                    "Dialogue": "我给你最后一次选择。",
+                    "next_speaker": None,
+                },
+                "api_error",
+            ]
+        )
+        summary_agent = FakeSummaryAgent(
+            {
+                "林若雪": {
+                    "carryover_summary": "林若雪已经建立了压迫感。",
+                    "current_goal": "继续逼顾寒霆表态。",
+                    "beliefs_about_others": {"顾寒霆": "会继续观察，但已不再绝对强硬"},
+                    "unresolved_hook": "顾寒霆何时会松口",
+                },
+                "顾寒霆": {
+                    "carryover_summary": "顾寒霆感受到局势失控。",
+                    "current_goal": "重新判断真假千金局势。",
+                    "beliefs_about_others": {"林若雪": "并不简单"},
+                    "unresolved_hook": "是否继续站在林白莲一边",
+                },
+            }
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            season_result = run_season(
+                planner_output,
+                role_agent,
+                summary_agent=summary_agent,
+                max_turns=1,
+                log_dir=temp_dir,
+            )
+            season_log_dir = Path(season_result["season_log_dir"])
+            season_summary_payload = json.loads(
+                (season_log_dir / "season_summary.json").read_text(encoding="utf-8")
+            )
+            self.assertTrue((season_log_dir / "checkpoints" / "episode_01_checkpoint.json").exists())
+            self.assertTrue((season_log_dir / "checkpoints" / "episode_02_checkpoint.json").exists())
+            self.assertFalse((season_log_dir / "checkpoints" / "episode_03_checkpoint.json").exists())
+            self.assertEqual(season_result["status"], "stopped")
+            self.assertEqual(season_result["stop_reason"], "api_error")
+            self.assertEqual(season_result["completed_episode_count"], 2)
+            self.assertEqual(season_result["completed_episode_numbers"], [1, 2])
+            self.assertEqual(len(season_result["episode_results"]), 2)
+            self.assertEqual(season_result["episode_results"][1]["status"], "api_error")
+            self.assertEqual(
+                season_result["season_context"]["season_stats"]["episode_status_map"],
+                {"1": "max_turns_reached", "2": "api_error"},
+            )
+            self.assertEqual(season_summary_payload["failed_episode_count"], 1)
+            self.assertEqual(season_summary_payload["episode_status_counts"]["api_error"], 1)
+            self.assertFalse(season_summary_payload["completed_all_planned_episodes"])
+        self.assertEqual(len(role_agent.prompts), 2)
+
+    def test_run_season_creates_isolated_log_directories_for_multiple_runs(self):
+        """验证同一日志根目录下多次 season 运行会生成不同 run 目录，不会互相覆盖。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            first_role_agent = FakeRoleAgent(
+                [
+                    {
+                        "Inner_Thought": "第一轮第一集。",
+                        "Action": "林若雪先发制人。",
+                        "Dialogue": "你现在就回答我。",
+                        "next_speaker": None,
+                    },
+                    {
+                        "Inner_Thought": "第一轮第二集。",
+                        "Action": "林若雪继续逼问。",
+                        "Dialogue": "你还想拖到什么时候？",
+                        "next_speaker": None,
+                    },
+                ]
+            )
+            second_role_agent = FakeRoleAgent(
+                [
+                    {
+                        "Inner_Thought": "第二轮第一集。",
+                        "Action": "林若雪换了说法。",
+                        "Dialogue": "这次你必须表态。",
+                        "next_speaker": None,
+                    },
+                    {
+                        "Inner_Thought": "第二轮第二集。",
+                        "Action": "林若雪压低声音。",
+                        "Dialogue": "你已经没有退路了。",
+                        "next_speaker": None,
+                    },
+                ]
+            )
+
+            first_result = run_season(
+                self.planner_output,
+                first_role_agent,
+                summary_agent=None,
+                max_turns=1,
+                log_dir=temp_dir,
+            )
+            second_result = run_season(
+                self.planner_output,
+                second_role_agent,
+                summary_agent=None,
+                max_turns=1,
+                log_dir=temp_dir,
+            )
+
+            season_runs_dir = Path(temp_dir) / "season_runs"
+            self.assertNotEqual(first_result["run_id"], second_result["run_id"])
+            self.assertNotEqual(first_result["season_log_dir"], second_result["season_log_dir"])
+            self.assertTrue((Path(first_result["season_log_dir"]) / "planner_output.json").exists())
+            self.assertTrue((Path(second_result["season_log_dir"]) / "planner_output.json").exists())
+            self.assertTrue((Path(first_result["season_log_dir"]) / "episode_01_trace.json").exists())
+            self.assertTrue((Path(second_result["season_log_dir"]) / "episode_01_trace.json").exists())
+            self.assertEqual(len(list(season_runs_dir.iterdir())), 2)
 
 
 if __name__ == "__main__":
