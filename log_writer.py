@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from story_state import RuntimeState
+from story_state import Event, RoleMemory, RuntimeState
 
 
 def build_episode_log_path(episode: int, log_dir: str = "log") -> Path:
@@ -27,6 +27,42 @@ def write_episode_log(log_path: Path, payload: dict[str, Any]) -> None:
 def read_episode_log(log_path: Path) -> dict[str, Any]:
     """读取当前单集 JSON 日志。"""
     return json.loads(log_path.read_text(encoding="utf-8"))
+
+
+def serialize_event(event: Event) -> dict[str, Any]:
+    """将事件对象整理为便于审阅的 JSON 结构。"""
+    return {
+        "event_id": event.event_id,
+        "step": event.step,
+        "episode": event.episode,
+        "scene": event.scene,
+        "kind": event.kind,
+        "speaker": event.speaker,
+        "content": event.content,
+        "visible_to": list(event.visible_to),
+    }
+
+
+def serialize_role_memory(role_memory: RoleMemory) -> dict[str, Any]:
+    """将角色记忆整理为可直接写入日志的结构。"""
+    return {
+        "private_history": list(role_memory.private_history),
+        "private_summary": role_memory.private_summary,
+        "summary_until_event_id": role_memory.summary_until_event_id,
+        "carryover_summary": role_memory.carryover_summary,
+        "carryover_event_tail": [dict(event) for event in role_memory.carryover_event_tail],
+        "current_goal": role_memory.current_goal,
+        "beliefs_about_others": dict(role_memory.beliefs_about_others),
+        "unresolved_hook": role_memory.unresolved_hook,
+    }
+
+
+def serialize_role_memories(role_memories: dict[str, RoleMemory]) -> dict[str, dict[str, Any]]:
+    """批量整理角色记忆快照。"""
+    return {
+        role_name: serialize_role_memory(role_memory)
+        for role_name, role_memory in role_memories.items()
+    }
 
 
 def initialize_episode_log(
@@ -53,6 +89,7 @@ def initialize_episode_log(
             "first_speaker": episode_plan["first_speaker"],
         },
         "character_directives": directives,
+        "initial_role_memories": serialize_role_memories(runtime_state.role_memories),
         "turns": [],
         "result": None,
     }
@@ -64,7 +101,10 @@ def append_turn_log(
     log_path: Path,
     step: int,
     speaker: str,
+    prompt: str,
+    use_fallback_history: bool,
     turn_output: dict,
+    committed_events: list[Event],
     proposed_next_speaker: str | None,
     resolved_next_speaker: str | None,
     status: str,
@@ -75,12 +115,15 @@ def append_turn_log(
         {
             "step": step,
             "speaker": speaker,
+            "use_fallback_history": use_fallback_history,
+            "prompt": prompt,
             "output": {
                 "Inner_Thought": turn_output.get("Inner_Thought", "").strip(),
                 "Action": turn_output.get("Action", "").strip(),
                 "Dialogue": turn_output.get("Dialogue", "").strip(),
                 "next_speaker": turn_output.get("next_speaker"),
             },
+            "committed_events": [serialize_event(event) for event in committed_events],
             "routing": {
                 "proposed_next_speaker": proposed_next_speaker,
                 "resolved_next_speaker": resolved_next_speaker,
@@ -93,9 +136,11 @@ def append_turn_log(
 
 def finalize_episode_log(
     log_path: Path,
+    runtime_state: RuntimeState,
     result_status: str,
     last_speaker: str,
     total_turns: int,
+    summary_status: dict[str, str],
 ) -> None:
     """在 JSON 日志中写入单集最终结果。"""
     payload = read_episode_log(log_path)
@@ -103,5 +148,7 @@ def finalize_episode_log(
         "status": result_status,
         "last_speaker": last_speaker,
         "total_turns": total_turns,
+        "summary_status": summary_status,
+        "final_role_memories": serialize_role_memories(runtime_state.role_memories),
     }
     write_episode_log(log_path, payload)
