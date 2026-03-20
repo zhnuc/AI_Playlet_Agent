@@ -62,6 +62,19 @@ def format_visible_events(events: list[Event]) -> str:
     return "\n".join(formatted_lines)
 
 
+def format_serialized_visible_events(events: list[dict]) -> str:
+    """将已序列化的事件尾巴格式化为 prompt 文本。"""
+    if not events:
+        return "暂无历史互动。"
+
+    formatted_lines = []
+    for event in events:
+        formatted_lines.append(
+            f"[step {event['step']}] {event['kind']} | {event['speaker']}：{event['content']}"
+        )
+    return "\n".join(formatted_lines)
+
+
 def split_tail_events(events: list[Event], tail_window: int) -> tuple[list[Event], list[Event]]:
     """将未摘要事件拆成旧事件层与尾部细节层。"""
     if tail_window <= 0:
@@ -98,8 +111,8 @@ def build_role_context(
     beliefs_text = format_beliefs_about_others(role_memory.beliefs_about_others)
 
     if use_fallback_history:
-        fallback_events = get_recent_visible_events(role_name, runtime_state, fallback_history_window)
-        fallback_history_text = format_visible_events(fallback_events)
+        fallback_events = role_memory.carryover_event_tail[-fallback_history_window:]
+        fallback_history_text = format_serialized_visible_events(fallback_events)
         return f"""
 # Role:
 你是一个演技精湛的专业短剧演员，需要严格站在“{role_name}”的视角继续当前场景互动。

@@ -12,6 +12,15 @@ from scheduler import is_end_signal, resolve_next_speaker
 from story_state import RoleMemory, RuntimeState, create_runtime_state, get_episode_plan
 
 
+def should_use_fallback_history(role_memory: RoleMemory) -> bool:
+    """判断当前角色是否应自动进入跨集 fallback prompt。"""
+    return (
+        not role_memory.carryover_summary.strip()
+        and bool(role_memory.carryover_event_tail)
+        and not role_memory.private_history
+    )
+
+
 def complete_episode_run(
     runtime_state: RuntimeState,
     summary_agent: Summary_Agent | None,
@@ -19,14 +28,21 @@ def complete_episode_run(
     result_status: str,
     last_speaker: str,
     turn_trace: list[dict],
+    fallback_history_window: int,
 ) -> dict:
     """统一处理 episode 收尾日志与跨集记忆回写。"""
-    summary_status = finalize_role_memories_for_next_episode(runtime_state, summary_agent)
+    summary_status = finalize_role_memories_for_next_episode(
+        runtime_state,
+        summary_agent,
+        fallback_history_window=fallback_history_window,
+    )
     finalize_episode_log(
         log_path,
+        runtime_state=runtime_state,
         result_status=result_status,
         last_speaker=last_speaker,
         total_turns=runtime_state.story.current_turn,
+        summary_status=summary_status,
     )
     return {
         "status": result_status,
@@ -64,12 +80,14 @@ def run_episode(
     #* 每一轮循环就是一个 agent 的 turn
     for _ in range(max_turns):
         # 构造当前角色的输入
+        use_fallback_history = should_use_fallback_history(runtime_state.role_memories[current_speaker])
         prompt = build_role_context(
             current_speaker,
             runtime_state,
             episode_plan,
             tail_window=tail_window,
             fallback_history_window=fallback_history_window,
+            use_fallback_history=use_fallback_history,
         )
         # 调用 agent llm，生成这一轮输出
         # 返回 thought + action + dialogue + next_speaker 4 个字段内容
@@ -82,9 +100,10 @@ def run_episode(
                 result_status=turn_output,
                 last_speaker=current_speaker,
                 turn_trace=turn_trace,
+                fallback_history_window=fallback_history_window,
             )
         # 将这一轮输出提交到状态，更新 runtime_state
-        commit_turn_result(runtime_state, current_speaker, turn_output)
+        committed_events = commit_turn_result(runtime_state, current_speaker, turn_output)
         # 读取模型提议的下一位 speaker
         proposed_next_speaker = turn_output.get("next_speaker")
         turn_record = {
@@ -102,7 +121,10 @@ def run_episode(
                     log_path,
                     step=runtime_state.story.current_turn,
                     speaker=current_speaker,
+                    prompt=prompt,
+                    use_fallback_history=use_fallback_history,
                     turn_output=turn_output,
+                    committed_events=committed_events,
                     proposed_next_speaker=turn_output.get("next_speaker"),
                     resolved_next_speaker="end",
                     status="ended",
@@ -114,6 +136,7 @@ def run_episode(
                     result_status="ended",
                     last_speaker=current_speaker,
                     turn_trace=turn_trace,
+                    fallback_history_window=fallback_history_window,
                 )
             proposed_next_speaker = None
         # 解析下一位 speaker
@@ -130,7 +153,10 @@ def run_episode(
             log_path,
             step=runtime_state.story.current_turn,
             speaker=current_speaker,
+            prompt=prompt,
+            use_fallback_history=use_fallback_history,
             turn_output=turn_output,
+            committed_events=committed_events,
             proposed_next_speaker=turn_output.get("next_speaker"),
             resolved_next_speaker=next_speaker,
             status=turn_record["status"],
@@ -144,6 +170,7 @@ def run_episode(
                 result_status="handoff",
                 last_speaker=current_speaker,
                 turn_trace=turn_trace,
+                fallback_history_window=fallback_history_window,
             )
 
         current_speaker = next_speaker
@@ -155,6 +182,7 @@ def run_episode(
         result_status="max_turns_reached",
         last_speaker=current_speaker,
         turn_trace=turn_trace,
+        fallback_history_window=fallback_history_window,
     )
 
 # test

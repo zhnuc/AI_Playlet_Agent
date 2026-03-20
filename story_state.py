@@ -29,6 +29,7 @@ class RoleMemory:
     private_summary: str = ""
     summary_until_event_id: str | None = None
     carryover_summary: str = ""
+    carryover_event_tail: list[dict[str, Any]] = field(default_factory=list)
     current_goal: str = ""
     beliefs_about_others: dict[str, str] = field(default_factory=dict)
     unresolved_hook: str = ""
@@ -84,6 +85,7 @@ def inherit_role_memory(previous_memory: RoleMemory, episode_directive: str) -> 
     """基于上一集记忆构造下一集初始角色状态。"""
     return RoleMemory(
         carryover_summary=previous_memory.carryover_summary,
+        carryover_event_tail=[dict(event) for event in previous_memory.carryover_event_tail],
         current_goal=merge_current_goal(previous_memory.current_goal, episode_directive),
         beliefs_about_others=dict(previous_memory.beliefs_about_others),
         unresolved_hook=previous_memory.unresolved_hook,

@@ -107,6 +107,21 @@ def serialize_events_for_summary(events: list[Event]) -> list[dict[str, Any]]:
     ]
 
 
+def serialize_events_for_carryover_tail(events: list[Event], fallback_history_window: int = 6) -> list[dict[str, Any]]:
+    """截取并序列化跨集 fallback 需要保留的尾部事件。"""
+    tail_events = events[-fallback_history_window:] if fallback_history_window > 0 else []
+    return [
+        {
+            "event_id": event.event_id,
+            "step": event.step,
+            "kind": event.kind,
+            "speaker": event.speaker,
+            "content": event.content,
+        }
+        for event in tail_events
+    ]
+
+
 def build_role_summary_input(role_name: str, runtime_state: RuntimeState) -> dict[str, Any]:
     """整理单角色的摘要输入载荷。"""
     role_memory = runtime_state.role_memories[role_name]
@@ -139,9 +154,23 @@ def apply_summary_to_role_memory(role_name: str, runtime_state: RuntimeState, su
     role_memory.unresolved_hook = summary_payload.get("unresolved_hook", "").strip()
 
 
+def save_role_carryover_event_tail(
+    role_name: str,
+    runtime_state: RuntimeState,
+    fallback_history_window: int = 6,
+) -> None:
+    """为角色保存跨集 fallback 使用的原始事件尾巴。"""
+    visible_events = get_role_visible_events(role_name, runtime_state)
+    runtime_state.role_memories[role_name].carryover_event_tail = serialize_events_for_carryover_tail(
+        visible_events,
+        fallback_history_window=fallback_history_window,
+    )
+
+
 def finalize_role_memories_for_next_episode(
     runtime_state: RuntimeState,
     summary_agent: Summary_Agent | None,
+    fallback_history_window: int = 6,
 ) -> dict[str, str]:
     """在 episode 收尾阶段统一生成并回写角色跨集记忆。"""
     roles_to_summarize = [
@@ -151,6 +180,14 @@ def finalize_role_memories_for_next_episode(
     ]
     if not roles_to_summarize:
         return {}
+
+    for role_name in roles_to_summarize:
+        save_role_carryover_event_tail(
+            role_name,
+            runtime_state,
+            fallback_history_window=fallback_history_window,
+        )
+
     if summary_agent is None:
         return {role_name: "summary_agent_missing" for role_name in roles_to_summarize}
 
