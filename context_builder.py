@@ -91,6 +91,30 @@ def format_beliefs_about_others(beliefs: dict[str, str]) -> str:
     return "\n".join([f"- {role_name}：{belief}" for role_name, belief in beliefs.items()])
 
 
+def format_next_speaker_choices(scene_roles: list[str], current_speaker: str) -> str:
+    """格式化当前角色可选择的合法下一位说话者。"""
+    next_candidates = [speaker for speaker in scene_roles if speaker != current_speaker]
+    return "、".join(next_candidates) if next_candidates else "end"
+
+
+def build_next_speaker_retry_note(
+    role_name: str,
+    invalid_next_speaker: str | None,
+    scene_roles: list[str],
+) -> str:
+    """构造 next_speaker 非法后的重试提示。"""
+    legal_choices_text = format_next_speaker_choices(scene_roles, role_name)
+    invalid_text = (invalid_next_speaker or "空值").strip() or "空值"
+    end_suffix = "" if legal_choices_text == "end" else "、end"
+    return f"""
+# Retry Note:
+- 你上一轮的 `next_speaker` 为 `{invalid_text}`，不合法。
+- 你本轮只能从以下值中选择：{legal_choices_text}{end_suffix}
+- 先保证路由合理，再继续推进本集核心冲突。
+- 不要重复输出场外人物、泛称、当前角色自己或其他非法值。
+"""
+
+
 def build_role_context(
     role_name: str,
     runtime_state: RuntimeState,
@@ -98,17 +122,24 @@ def build_role_context(
     tail_window: int = 4,
     fallback_history_window: int = 6,
     use_fallback_history: bool = False,
+    retry_invalid_next_speaker: str | None = None,
 ) -> str:
     """构造当前角色的一轮混合记忆工作上下文。"""
     role_memory = runtime_state.role_memories[role_name]
     role_profile = format_role_profile(runtime_state, role_name)
     scene_roles = "、".join(runtime_state.story.scene_roles)
-    next_candidates = [speaker for speaker in runtime_state.story.scene_roles if speaker != role_name]
-    next_speaker_text = "、".join(next_candidates) if next_candidates else "end"
+    next_speaker_text = format_next_speaker_choices(runtime_state.story.scene_roles, role_name)
     carryover_summary_text = role_memory.carryover_summary or "暂无上一集延续记忆。"
     private_summary_text = role_memory.private_summary or "当前集暂无已压缩摘要。"
     unresolved_hook_text = role_memory.unresolved_hook or "暂无需要延续的悬念。"
     beliefs_text = format_beliefs_about_others(role_memory.beliefs_about_others)
+    retry_note_text = ""
+    if retry_invalid_next_speaker is not None:
+        retry_note_text = build_next_speaker_retry_note(
+            role_name,
+            retry_invalid_next_speaker,
+            runtime_state.story.scene_roles,
+        )
 
     if use_fallback_history:
         fallback_events = role_memory.carryover_event_tail[-fallback_history_window:]
@@ -130,6 +161,8 @@ def build_role_context(
 {role_profile}
 -【本集角色指令】：{episode_plan["character_directives"].get(role_name, "根据现场局势自然推进剧情")}
 -【当前角色目标】：{role_memory.current_goal or "根据当前场景自然推进剧情"}
+
+{retry_note_text}
 
 # Fallback Memory:
 当前处于降级路径，仅提供最近 {fallback_history_window} 条可见历史：
@@ -189,6 +222,8 @@ def build_role_context(
 -【对他人的判断】：
 {beliefs_text}
 -【跨集悬念】：{unresolved_hook_text}
+
+{retry_note_text}
 
 # Episode Memory:
 -【当前集已压缩摘要】：{private_summary_text}
