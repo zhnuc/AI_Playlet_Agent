@@ -288,6 +288,35 @@ class PrivateSummaryFlowTest(unittest.TestCase):
         self.assertIn("你现在还敢说我没有准备吗", first_prompt)
         self.assertNotIn("跨集记忆摘要", first_prompt)
 
+    def test_run_episode_falls_back_to_valid_first_speaker_when_planner_is_invalid(self):
+        """验证 planner 给出非法 first_speaker 时，运行时会降级到场内合法首发角色。"""
+        planner_output = copy.deepcopy(self.planner_output)
+        planner_output["episodes"][0]["first_speaker"] = "拍卖师"
+        role_agent = FakeRoleAgent(
+            [
+                {
+                    "Inner_Thought": "林若雪先把场子稳住。",
+                    "Action": "林若雪抬眼看向顾寒霆。",
+                    "Dialogue": "今天谁都别想装作没看到。",
+                    "next_speaker": "顾寒霆",
+                }
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = run_episode(
+                planner_output,
+                role_agent,
+                1,
+                summary_agent=None,
+                max_turns=1,
+                log_dir=temp_dir,
+            )
+
+        self.assertEqual(role_agent.prompts[0][0], "林若雪")
+        self.assertEqual(result["status"], "max_turns_reached")
+        self.assertEqual(result["turn_trace"][0]["speaker"], "林若雪")
+
     def test_run_episode_carries_summary_into_next_episode_prompt(self):
         """验证 run_episode 会在收尾回写摘要，并在下一集 prompt 中继承。"""
         first_episode_role_agent = FakeRoleAgent(
@@ -352,6 +381,83 @@ class PrivateSummaryFlowTest(unittest.TestCase):
         self.assertNotIn("Fallback Memory", first_prompt)
         self.assertEqual(second_result["status"], "api_error")
 
+    def test_run_episode_retries_once_when_next_speaker_invalid_then_succeeds(self):
+        """验证 next_speaker 非法时会先重试一次，合法后继续推进。"""
+        role_agent = FakeRoleAgent(
+            [
+                {
+                    "Inner_Thought": "先把顾寒霆的注意力拉回来。",
+                    "Action": "林若雪将证据推到桌前。",
+                    "Dialogue": "你别装作什么都不知道。",
+                    "next_speaker": "手下",
+                },
+                {
+                    "Inner_Thought": "这次不能再乱跳路由。",
+                    "Action": "林若雪继续逼近顾寒霆。",
+                    "Dialogue": "现在轮到你回答我。",
+                    "next_speaker": "顾寒霆",
+                },
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = run_episode(
+                self.planner_output,
+                role_agent,
+                1,
+                summary_agent=None,
+                max_turns=1,
+                log_dir=temp_dir,
+            )
+
+        self.assertEqual(result["status"], "max_turns_reached")
+        self.assertEqual(result["turn_trace"][0]["route_retry_count"], 1)
+        self.assertEqual(result["runtime_state"].story.current_turn, 1)
+        self.assertEqual(len(result["runtime_state"].story.event_log), 3)
+        self.assertEqual(len(role_agent.prompts), 2)
+        retry_prompt = role_agent.prompts[1][1]
+        self.assertIn("你上一轮的 `next_speaker` 为 `手下`", retry_prompt)
+        self.assertIn("顾寒霆", retry_prompt)
+        self.assertIn("先保证路由合理，再继续推进本集核心冲突", retry_prompt)
+
+    def test_run_episode_handoff_when_next_speaker_invalid_after_retry(self):
+        """验证 next_speaker 连续非法两次后会直接进入 handoff。"""
+        role_agent = FakeRoleAgent(
+            [
+                {
+                    "Inner_Thought": "先制造一点压力。",
+                    "Action": "林若雪把文件拍在桌上。",
+                    "Dialogue": "你最好现在就给我解释。",
+                    "next_speaker": "手下",
+                },
+                {
+                    "Inner_Thought": "路由还是不对。",
+                    "Action": "林若雪不肯退让。",
+                    "Dialogue": "别找场外的人来搪塞我。",
+                    "next_speaker": "医生",
+                },
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = run_episode(
+                self.planner_output,
+                role_agent,
+                1,
+                summary_agent=None,
+                max_turns=1,
+                log_dir=temp_dir,
+            )
+
+        self.assertEqual(result["status"], "handoff")
+        self.assertEqual(result["runtime_state"].story.current_turn, 0)
+        self.assertEqual(len(result["runtime_state"].story.event_log), 0)
+        self.assertEqual(result["turn_trace"], [])
+        self.assertEqual(len(role_agent.prompts), 2)
+        retry_prompt = role_agent.prompts[1][1]
+        self.assertIn("你上一轮的 `next_speaker` 为 `手下`", retry_prompt)
+        self.assertIn("你本轮只能从以下值中选择：顾寒霆、end", retry_prompt)
+
     def test_episode_log_includes_prompt_events_and_memory_snapshots(self):
         """验证日志会写入 prompt、提交事件和集初集末记忆快照。"""
         role_agent = FakeRoleAgent(
@@ -402,6 +508,7 @@ class PrivateSummaryFlowTest(unittest.TestCase):
         self.assertIn("prompt", first_turn)
         self.assertIn("strict json", first_turn["prompt"].lower())
         self.assertFalse(first_turn["use_fallback_history"])
+        self.assertNotIn("Retry Note", first_turn["prompt"])
         self.assertEqual(len(first_turn["committed_events"]), 3)
         self.assertEqual(first_turn["committed_events"][0]["kind"], "thought")
         self.assertEqual(first_turn["committed_events"][1]["kind"], "action")
@@ -421,13 +528,13 @@ class PrivateSummaryFlowTest(unittest.TestCase):
                     "Inner_Thought": "我先试探顾寒霆的反应。",
                     "Action": "林若雪把文件放到桌上。",
                     "Dialogue": "你最好现在就给我一个态度。",
-                    "next_speaker": None,
+                    "next_speaker": "顾寒霆",
                 },
                 {
                     "Inner_Thought": "上一集已经把他逼到犹豫边缘。",
                     "Action": "林若雪继续前压。",
                     "Dialogue": "这一次，你没有退路了。",
-                    "next_speaker": None,
+                    "next_speaker": "顾寒霆",
                 },
             ]
         )
@@ -523,7 +630,7 @@ class PrivateSummaryFlowTest(unittest.TestCase):
                     "Inner_Thought": "第一集先把气势拿住。",
                     "Action": "林若雪直视顾寒霆。",
                     "Dialogue": "我给你最后一次选择。",
-                    "next_speaker": None,
+                    "next_speaker": "顾寒霆",
                 },
                 "api_error",
             ]
@@ -580,36 +687,36 @@ class PrivateSummaryFlowTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             first_role_agent = FakeRoleAgent(
                 [
-                    {
-                        "Inner_Thought": "第一轮第一集。",
-                        "Action": "林若雪先发制人。",
-                        "Dialogue": "你现在就回答我。",
-                        "next_speaker": None,
-                    },
-                    {
-                        "Inner_Thought": "第一轮第二集。",
-                        "Action": "林若雪继续逼问。",
-                        "Dialogue": "你还想拖到什么时候？",
-                        "next_speaker": None,
-                    },
-                ]
-            )
+                {
+                    "Inner_Thought": "第一轮第一集。",
+                    "Action": "林若雪先发制人。",
+                    "Dialogue": "你现在就回答我。",
+                    "next_speaker": "顾寒霆",
+                },
+                {
+                    "Inner_Thought": "第一轮第二集。",
+                    "Action": "林若雪继续逼问。",
+                    "Dialogue": "你还想拖到什么时候？",
+                    "next_speaker": "顾寒霆",
+                },
+            ]
+        )
             second_role_agent = FakeRoleAgent(
                 [
-                    {
-                        "Inner_Thought": "第二轮第一集。",
-                        "Action": "林若雪换了说法。",
-                        "Dialogue": "这次你必须表态。",
-                        "next_speaker": None,
-                    },
-                    {
-                        "Inner_Thought": "第二轮第二集。",
-                        "Action": "林若雪压低声音。",
-                        "Dialogue": "你已经没有退路了。",
-                        "next_speaker": None,
-                    },
-                ]
-            )
+                {
+                    "Inner_Thought": "第二轮第一集。",
+                    "Action": "林若雪换了说法。",
+                    "Dialogue": "这次你必须表态。",
+                    "next_speaker": "顾寒霆",
+                },
+                {
+                    "Inner_Thought": "第二轮第二集。",
+                    "Action": "林若雪压低声音。",
+                    "Dialogue": "你已经没有退路了。",
+                    "next_speaker": "顾寒霆",
+                },
+            ]
+        )
 
             first_result = run_season(
                 self.planner_output,

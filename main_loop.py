@@ -18,7 +18,7 @@ from log_writer import (
     write_season_summary,
 )
 from prompt import planner_agent_prompt
-from scheduler import is_end_signal, resolve_next_speaker
+from scheduler import is_end_signal, is_valid_next_speaker, resolve_next_speaker
 from story_state import (
     RoleMemory,
     RuntimeState,
@@ -129,6 +129,91 @@ def build_season_summary(
     }
 
 
+def resolve_episode_start_speaker(episode_plan: dict, valid_roles: list[str]) -> str:
+    """将 planner 给出的首发角色收敛到当前场景的合法发言者。"""
+    first_speaker = (episode_plan.get("first_speaker") or "").strip()
+    scene_roles = [role for role in episode_plan.get("scene_roles", []) if role in valid_roles]
+
+    if first_speaker and first_speaker in scene_roles:
+        return first_speaker
+
+    if scene_roles:
+        return scene_roles[0]
+
+    if valid_roles:
+        return valid_roles[0]
+
+    raise ValueError("当前没有可用的合法首发角色")
+
+
+def generate_role_turn_with_route_retry(
+    current_speaker: str,
+    runtime_state: RuntimeState,
+    episode_plan: dict,
+    role_agent_box: Role_Agent_Box,
+    valid_roles: list[str],
+    tail_window: int,
+    fallback_history_window: int,
+) -> dict[str, object]:
+    """调用角色 agent，并在 next_speaker 非法时最多重试一次。"""
+    use_fallback_history = should_use_fallback_history(runtime_state.role_memories[current_speaker])
+    invalid_next_speaker: str | None = None
+    retry_count = 0
+    prompt = ""
+    final_turn_output: dict | None = None
+
+    for attempt in range(2):
+        prompt = build_role_context(
+            current_speaker,
+            runtime_state,
+            episode_plan,
+            tail_window=tail_window,
+            fallback_history_window=fallback_history_window,
+            use_fallback_history=use_fallback_history,
+            retry_invalid_next_speaker=invalid_next_speaker,
+        )
+        turn_output = role_agent_box.generate_role_response(current_speaker, prompt)
+        if isinstance(turn_output, str):
+            return {
+                "status": turn_output,
+                "turn_output": None,
+                "prompt": prompt,
+                "use_fallback_history": use_fallback_history,
+                "retry_count": retry_count,
+                "invalid_next_speaker": invalid_next_speaker,
+            }
+
+        final_turn_output = turn_output
+        proposed_next_speaker = turn_output.get("next_speaker")
+        if is_valid_next_speaker(
+            current_speaker,
+            proposed_next_speaker,
+            runtime_state.story.scene_roles,
+            valid_roles,
+        ):
+            return {
+                "status": "ok",
+                "turn_output": turn_output,
+                "prompt": prompt,
+                "use_fallback_history": use_fallback_history,
+                "retry_count": retry_count,
+                "invalid_next_speaker": None,
+            }
+
+        invalid_next_speaker = proposed_next_speaker
+        if attempt == 0:
+            retry_count = 1
+
+    return {
+        "status": "handoff",
+        "turn_output": final_turn_output,
+        "prompt": prompt,
+        "use_fallback_history": use_fallback_history,
+        "retry_count": retry_count,
+        "invalid_next_speaker": invalid_next_speaker,
+    }
+
+
 def run_episode(
     planner_output: dict,
     role_agent_box: Role_Agent_Box,
@@ -148,48 +233,59 @@ def run_episode(
         previous_role_memories=previous_role_memories,
     )
     episode_plan = get_episode_plan(planner_output, episode)
-    current_speaker = episode_plan["first_speaker"]
     valid_roles = list(global_config["character_roster"].keys())
+    current_speaker = resolve_episode_start_speaker(episode_plan, valid_roles)
     turn_trace: list[dict] = []
     log_path = initialize_episode_log(runtime_state, episode_plan, log_dir=log_dir)
 
     #* 每一轮循环就是一个 agent 的 turn
     for _ in range(max_turns):
-        # 构造当前角色的输入
-        use_fallback_history = should_use_fallback_history(runtime_state.role_memories[current_speaker])
-        prompt = build_role_context(
+        turn_result = generate_role_turn_with_route_retry(
             current_speaker,
             runtime_state,
             episode_plan,
-            tail_window=tail_window,
+            role_agent_box,
+            valid_roles,
+            tail_window,
             fallback_history_window=fallback_history_window,
-            use_fallback_history=use_fallback_history,
         )
-        # 调用 agent llm，生成这一轮输出
-        # 返回 thought + action + dialogue + next_speaker 4 个字段内容
-        turn_output = role_agent_box.generate_role_response(current_speaker, prompt)
-        if isinstance(turn_output, str):
+
+        prompt = turn_result["prompt"]
+        use_fallback_history = bool(turn_result["use_fallback_history"])
+        if turn_result["status"] in {"api_error", "format_error", "key_error"}:
             return complete_episode_run(
                 runtime_state=runtime_state,
                 summary_agent=summary_agent,
                 log_path=log_path,
-                result_status=turn_output,
+                result_status=str(turn_result["status"]),
                 last_speaker=current_speaker,
                 turn_trace=turn_trace,
                 fallback_history_window=fallback_history_window,
             )
-        # 将这一轮输出提交到状态，更新 runtime_state
-        committed_events = commit_turn_result(runtime_state, current_speaker, turn_output)
-        # 读取模型提议的下一位 speaker
+
+        turn_output = turn_result["turn_output"]
+        if not isinstance(turn_output, dict):
+            return complete_episode_run(
+                runtime_state=runtime_state,
+                summary_agent=summary_agent,
+                log_path=log_path,
+                result_status="api_error",
+                last_speaker=current_speaker,
+                turn_trace=turn_trace,
+                fallback_history_window=fallback_history_window,
+            )
+
         proposed_next_speaker = turn_output.get("next_speaker")
         turn_record = {
             "step": runtime_state.story.current_turn,
             "speaker": current_speaker,
             "proposed_next_speaker": proposed_next_speaker,
+            "route_retry_count": turn_result["retry_count"],
         }
 
         if is_end_signal(proposed_next_speaker): # 角色申请结束本集剧情
             if should_end_episode(runtime_state): # 交由 director 判断
+                committed_events = commit_turn_result(runtime_state, current_speaker, turn_output)
                 turn_record["resolved_next_speaker"] = "end"
                 turn_record["status"] = "ended"
                 turn_trace.append(turn_record)
@@ -215,6 +311,20 @@ def run_episode(
                     fallback_history_window=fallback_history_window,
                 )
             proposed_next_speaker = None
+
+        if turn_result["status"] == "handoff":
+            return complete_episode_run(
+                runtime_state=runtime_state,
+                summary_agent=summary_agent,
+                log_path=log_path,
+                result_status="handoff",
+                last_speaker=current_speaker,
+                turn_trace=turn_trace,
+                fallback_history_window=fallback_history_window,
+            )
+
+        # 将这一轮输出提交到状态，更新 runtime_state
+        committed_events = commit_turn_result(runtime_state, current_speaker, turn_output)
         # 解析下一位 speaker
         next_speaker = resolve_next_speaker(
             current_speaker=current_speaker,

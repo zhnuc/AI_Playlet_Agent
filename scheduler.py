@@ -8,19 +8,44 @@ def is_end_signal(next_speaker: str | None) -> bool:
     return (next_speaker or "").strip().lower() == "end"
 
 
+def get_allowed_next_speakers(
+    current_speaker: str,
+    scene_roles: list[str],
+    valid_roles: list[str],
+) -> list[str]:
+    """获取当前角色本轮允许的下一位说话者列表。"""
+    return [
+        role
+        for role in scene_roles
+        if role in valid_roles and role != current_speaker
+    ]
+
+
+def is_valid_next_speaker(
+    current_speaker: str,
+    proposed_next_speaker: str | None,
+    scene_roles: list[str],
+    valid_roles: list[str],
+) -> bool:
+    """判断 next_speaker 是否属于当前场景的合法范围。"""
+    proposed = (proposed_next_speaker or "").strip()
+    if is_end_signal(proposed):
+        return True
+    return proposed in get_allowed_next_speakers(current_speaker, scene_roles, valid_roles)
+
+
 def resolve_next_speaker(
     current_speaker: str,
     proposed_next_speaker: str | None,
     scene_roles: list[str],
     valid_roles: list[str],
 ) -> str | None:
-    """校验下一位说话者是否合法，并在必要时执行兜底。"""
+    """校验下一位说话者是否合法，并返回可继续推进的结果。"""
     proposed = (proposed_next_speaker or "").strip()
 
-    if proposed and proposed in valid_roles and proposed in scene_roles and proposed != current_speaker:
-        return proposed
+    if is_end_signal(proposed):
+        return "end"
 
-    candidates = [role for role in scene_roles if role in valid_roles and role != current_speaker]
-    if len(candidates) == 1:
-        return candidates[0]
+    if proposed and proposed in get_allowed_next_speakers(current_speaker, scene_roles, valid_roles):
+        return proposed
     return None
