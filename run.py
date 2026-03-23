@@ -1,11 +1,10 @@
 import json
-import re
 import os
 
 
 from global_config import global_config
 from prompt import Planner_Agent_Prompt
-from agent_model import load_env,Planner_Agent,Actor_Agent_Box
+from agent_model import load_env,Planner_Agent,Actor_Agent_Box,Director_Agent_Box
 
 
 def run():
@@ -17,8 +16,9 @@ def run():
     planner_prompt_factory=Planner_Agent_Prompt(global_config)
     planner_agent=Planner_Agent(base_url,api_key,model)
     actor_agent_box=Actor_Agent_Box(base_url,api_key,model,global_config)
+    director_agent_box=Director_Agent_Box(base_url,api_key,model,global_config)
 
-    # ---------- 调用总策划Agent ----------
+    # ========== 调用总策划Agent ==========
     prompt=planner_prompt_factory.generate_prompt()
     planner_output=planner_agent.generate_outline(prompt)
     if planner_output in ["format_error","api_error"]:
@@ -52,6 +52,7 @@ def run():
             if planner_output in ["format_error","api_error"]:
                 print("\n初始大纲生成失败,自动退出系统\n")
                 return 
+            
             else:
                 print("\n========== 剧本大纲生成完成 ===========\n")
                 print(json.dumps(planner_output,indent=2,ensure_ascii=False))
@@ -60,24 +61,65 @@ def run():
         else:
             print("\n输入错误:您的输入不是 yes 或者 no ,请重新输入\n")
 
-    # ---------- 调用角色Agent互动 ---------- 
+    # ========== 每集剧情演绎(角色Agent+总监制Agent) ==========
     episode_num=len(planner_output["episodes"])
     max_step=16
     episode=1
     step=1
+
+    # 状态机全局变量
     user_feedback=None
     agent_feedback=None
     force_speaker=None
+    recall_name=None
+    name_list=[]
+
     while(episode<=episode_num):
 
         while(step<=max_step):
 
             if (step==1):
                 name=planner_output["episodes"][episode-1]["first_speaker"]
-            elif (step%4==1):
-                pass        # 在准备演第5、9、13集调用总监制Agent推进剧情...
+
+            # ---------- 为总监制Agent提供上帝视角 ----------
+            full_history = ""
+            if episode in actor_agent_box.global_history:
+                for his in actor_agent_box.global_history[episode]:
+                    full_history += f"role:{his['role']}\nInner_Thought:{his['Inner_Thought']}\nAction:{his['Action']}\nDialogue:{his['Dialogue']}\n\n"
+            if not full_history.strip():
+                full_history="当前无历史互动,本集刚开场"
+                
+            next_first = None
+            if episode < episode_num:
+                next_first = planner_output["episodes"][episode]["first_speaker"]
             
+            if step > 1:
+                # ---------- 模式2:总监制Agent强制收尾 ----------
+                if (max_step-step<= 2):
+                    director_output=director_agent_box.converge(planner_output,episode,full_history,name,name_list,next_first)
+                    if isinstance(director_output,dict):
+                        if director_output.get("Action_Type",None) in ["Override","'Override'",'"Override"']:
+                            name=director_output.get("Target_Role")
+                            name_list=[]
+                            force_speaker=None
+                        agent_feedback=director_output.get("Directive")
+
+                # ---------- 模式1:总监制Agent前中期巡视 ----------
+                elif step in [5,9]:
+                    director_output=director_agent_box.patrol(planner_output,episode,full_history,name,name_list)
+                    if isinstance(director_output,dict):
+                        if director_output.get("Action_Type",None) in ["Override","'Override'",'"Override"']:
+                            name=director_output.get("Target_Role")
+                            name_list=[]
+                            force_speaker=None
+                        if director_output.get("Action_Type")!="Pass":
+                            agent_feedback=director_output.get("Directive")
+
+            # ---------- 角色Agent开始演绎互动 ----------
             prompt=actor_agent_box.generate_prompt(planner_output,name,episode,user_feedback,agent_feedback,force_speaker)
+            if prompt=="name_error":
+                print(f"\n致命错误:剧本大纲或上一个演员指定了不存在的角色{name},剧组强行停机!")
+                return 
             actor_output=actor_agent_box.generate_reaction(name,[{"role":"user","content":prompt}],episode)
 
             if actor_output in ["name_error","key_error","format_error","api_error"]:
@@ -90,14 +132,44 @@ def run():
                 Action=actor_agent_box.global_history[episode][-1]["Action"]
                 Dialogue=actor_agent_box.global_history[episode][-1]["Dialogue"]
 
+                # ----- 及时处理场外指导(场外指导仅持续一次) -----
                 if user_feedback!=None:
                     user_feedback=None
+                if agent_feedback!=None:
+                    agent_feedback=None
 
                 if force_speaker==None:
                     if isinstance(actor_output,list):
                         if len(actor_output)==1:
-                            if actor_output[0]=="end" or actor_output[0]=="'end'":
-                                pass        #调用总策划Agent决定是否结束
+
+                            # ---------- 处理杀青申请 ----------
+                            if actor_output[0] in ["end","'end'",'"end"']:
+                                # ----- 更新full_history ----- 
+                                current_step_text=f"role:{role}\nInner_Thought:{Inner_Thought}\nAction:{Action}\nDialogue:{Dialogue}\n\n"
+                                audit_history=full_history+current_step_text
+                                director_output=director_agent_box.audit_end(planner_output,episode,audit_history,next_first)
+                                
+                                if isinstance(director_output,dict):
+                                    # ----- 杀青审核通过 -----
+                                    if str(director_output.get("Approved")).lower() in ["true","'true'",'"true"']:
+                                        print(f"\n第{step}步:\n姓名:{role}\n内心想法:{Inner_Thought}\n动作:{Action}\n对话:{Dialogue}\n")
+                                        print(f"\n[导演场外音]:咔!悬念和情绪到位，本集完美杀青！")
+                                        break # 彻底跳出当前集的 step 循环
+
+                                    # ----- 杀青审核拒绝 -----
+                                    else:
+                                        print(f"\n❌ [导演场外音]: 咔！悬念不够或衔接生硬，驳回杀青申请，必须补救！")
+                                        reject_info=director_output.get("Rejected_Feedback",{})
+                                
+                                        # ----- 如果导演指定了人去补救,就切镜头;否则让刚才说话的人继续找补 -----
+                                        name=reject_info.get("Target_Role",role) 
+                                        if name in ["null","'null'",'"null"',None]: 
+                                            name=role
+    
+                                        agent_feedback=reject_info.get("Directive","悬念不够，请继续激化矛盾并抛出悬念!")
+                                        name_list=[]
+                                        force_speaker=None
+
                             else:
                                 name=actor_output[0]
             
@@ -122,6 +194,7 @@ def run():
             
             step+=1
             
+            # ========== 处理用户反馈 ===========
             while(True):
                 user_input=input("\n你是否满意以上角色互动?\n(输入 yes 表示满意并继续角色Agent互动,或者输入 no 将为您提供回档功能与意见功能)")
                 
@@ -141,8 +214,7 @@ def run():
                         step=user_step+1
                         episode=user_episode
 
-                        # 这里需要认真处理好name和name-list等等后续顺序关系...
-
+                        # ----- 处理回档后name/name_list/force_speaker -----
                         if user_step==0:
                             name=planner_output["episodes"][episode-1]["first_speaker"]
                             force_speaker=None
@@ -202,7 +274,11 @@ def run():
 
         step=1
         episode+=1  
-
+        user_feedback=None
+        agent_feedback=None
+        force_speaker=None
+        name_list=[]
+        recall_name=None
 
 
 if __name__=="__main__":

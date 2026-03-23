@@ -5,8 +5,7 @@ from dotenv import load_dotenv
 from typing import Union
 
 
-from prompt import Actor_Agent_Prompt
-
+from prompt import Actor_Agent_Prompt,Director_Agent_Prompt
 
 def load_env():
 
@@ -31,11 +30,11 @@ def clean_json_markdown(raw_json_text):
     clean_json_text=raw_json_text.strip()
     if clean_json_text.startswith("```json"):
         clean_json_text=clean_json_text[7:]
-    elif clean_text.startswith("```"):
+    elif clean_json_text.startswith("```"):
         clean_json_text=clean_json_text[3:]
-    if clean_text.endswith("```"):
-        clean_text = clean_text[:-3]
-    return clean_text.strip()
+    if clean_json_text.endswith("```"):
+        clean_json_text=clean_json_text[:-3]
+    return clean_json_text.strip()
 
 class Planner_Agent():
 
@@ -48,7 +47,7 @@ class Planner_Agent():
 
     def generate_outline(self,prompt):
 
-        print(f"总策划Agent正在策划分集大纲,使用模型{self.model}")
+        print(f"\n总策划Agent正在策划分集大纲,使用模型{self.model}\n")
         
         try:
             response=self.client.chat.completions.create(model=self.model,
@@ -65,7 +64,7 @@ class Planner_Agent():
             
             # 展示模型错误输出
             except Exception as e:
-                print(f"总策划Agent调用Api失败:{e}")
+                print(f"总策划Agent输出格式错误:{e}")
                 print(f"[Debug]模型输出:{repr(raw_text)}")
                 return "format_error"
             
@@ -82,38 +81,43 @@ class Actor_Agent_Box():
         self.api_key=api_key
         self.model=model 
         self.client=OpenAI(base_url=self.base_url,api_key=self.api_key)
+        self.global_config=global_config
         self.global_history={}
         # 引入提示词构建器实例
-        self.actor_agent_prompt=Actor_Agent_Prompt(global_config)       
+        self.actor_agent_prompt=Actor_Agent_Prompt(self.global_config)       
     
     # ---------- 创建角色Agent提示词 ----------
-    def generate_prompt(self,planner_output,name,episode,temporary_feedback=None,force_speaker=None) -> str :
+    def generate_prompt(self,planner_output,name,episode,user_feedback=None,agent_feedback=None,force_speaker=None) -> str :
 
-        history=""
-        if episode not in self.global_history:
-            self.global_history[episode]=[]
+        if name not in self.global_config["character_roster"].keys():
+            return "name_error"
+        
+        else:
+            history=""
+            if episode not in self.global_history:
+                self.global_history[episode]=[]
 
-        visible_history=[]
-        for epi in range(1,episode+1):
-            if epi in self.global_history:
-                for his in self.global_history[epi]:
-                    if name==his["role"]:
-                        visible_history.append(his)
-                    else:
-                        visible_list=his["visible"]
-                        if (isinstance(visible_list,list)) and (name in visible_list):
+            visible_history=[]
+            for epi in range(1,episode+1):
+                if epi in self.global_history:
+                    for his in self.global_history[epi]:
+                        if name==his["role"]:
                             visible_history.append(his)
+                        else:
+                            visible_list=his["visible"]
+                            if (isinstance(visible_list,list)) and (name in visible_list):
+                                visible_history.append(his)
 
-        # 截取部分历史互动,且Inner_Thought进行保密操作
-        for vis_his in visible_history[-6:]:        
-            history+="\n".join([f"role:{vis_his['role']}",f"Action:{vis_his['Action']}",f"Dialogue:{vis_his['Dialogue']}"])
-            history+="\n\n"
-        
-        # 处理角色面临历史信息为空的状况
-        if not history.strip():
-            history="(当前无历史互动,你直接开场行动)"
-        
-        return self.actor_agent_prompt.generate_prompt(planner_output,name,episode,history,temporary_feedback,force_speaker)
+            # 截取部分历史互动,且Inner_Thought进行保密操作
+            for vis_his in visible_history[-6:]:        
+                history+="\n".join([f"role:{vis_his['role']}",f"Action:{vis_his['Action']}",f"Dialogue:{vis_his['Dialogue']}"])
+                history+="\n\n"
+            
+            # 处理角色面临历史信息为空的状况
+            if not history.strip():
+                history="(当前无历史互动,你直接开场行动)"
+            
+            return self.actor_agent_prompt.generate_prompt(planner_output,name,episode,history,user_feedback,agent_feedback,force_speaker)
 
     # ---------- 调用角色Agent输出 ----------
     def generate_reaction(self,name,message:list[dict[str,str]],episode) -> Union[list,str] : 
@@ -177,3 +181,60 @@ class Actor_Agent_Box():
                 return "step_error"    
         else:
             return "episode_error"
+        
+
+class Director_Agent_Box():
+
+    def __init__(self,base_url,api_key,model,global_config):
+
+        self.base_url=base_url
+        self.api_key=api_key
+        self.model=model
+        self.client=OpenAI(base_url=self.base_url,api_key=self.api_key)
+        self.director_agent_prompt=Director_Agent_Prompt(global_config)
+
+    def generate_direction(self,prompt,pattern):
+
+        print(f"\n{pattern}:总监制正在审查与指导中,使用模型{self.model}\n")
+
+        try:
+            response=self.client.chat.completions.create(model=self.model,
+                                                         messages=[{"role":"user","content":prompt}],
+                                                         response_format={"type":"json_object"},
+                                                         temperature=0.0)
+
+            raw_text=response.choices[0].message.content
+            # 清洗Markdown
+            raw_text=clean_json_markdown(raw_text)
+            
+            try:
+                raw_json=json.loads(raw_text)
+                return raw_json
+            
+            # 展示模型错误输出
+            except Exception as e:
+                print(f"总监制Agent输出格式错误:{e}")
+                print(f"[Debug]模型输出:{repr(raw_text)}")
+                return "format_error"
+                
+        except Exception as e:
+            print(f"总监制Agent调用Api失败:{e}")
+            return "api_error" 
+    
+    # 模式1:前中期巡视 
+    def patrol(self,planner_output,episode,history,name,name_list):
+        
+        prompt = self.director_agent_prompt.generate_patrol_prompt(planner_output,episode,history,name,name_list)
+        return self.generate_direction(prompt,pattern="[总监制-前中期巡视模式]")
+    
+    # ---------- 模式2:中后期强制收网 ----------
+    def converge(self, planner_output, episode, history, name, name_list, next_first_speaker):
+
+        prompt = self.director_agent_prompt.generate_convergence_prompt(planner_output,episode,history,name,name_list,next_first_speaker)
+        return self.generate_direction(prompt,pattern="[总监制-中后期收网模式]")
+    
+    # ---------- 模式3:杀青审核模式 ----------
+    def audit_end(self, planner_output, episode, history, next_first_speaker):
+        
+        prompt=self.director_agent_prompt.generate_audit_prompt(planner_output,episode,history,next_first_speaker)
+        return self.generate_direction(prompt,pattern="[总监制-杀青审核模式]")
