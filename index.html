@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Frontend Concept</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero-card">
+      <div class="hero-copy">
+        <p class="eyebrow">Agent Frontend Concept</p>
+        <h1>短剧创作指挥台</h1>
+        <p class="hero-text">
+          把灵感输入、角色推演、导演干预和工业格式输出收拢到一个界面里。前端已预留接口位，后续可以直接接入多 Agent 编排与 SSE 流式生成。
+        </p>
+        <div class="hero-actions">
+          <button class="primary-btn" id="startDemo">开始一轮推演</button>
+          <button class="ghost-btn" id="randomizeAll">随机生成灵感</button>
+        </div>
+      </div>
+      <div class="hero-metrics">
+        <article>
+          <span>创作模式</span>
+          <strong id="modeBadge">群聊推演</strong>
+        </article>
+        <article>
+          <span>监制轮数</span>
+          <strong id="roundBadge">6 轮</strong>
+        </article>
+        <article>
+          <span>输出节奏</span>
+          <strong>SSE 占位</strong>
+        </article>
+      </div>
+    </header>
+
+    <main class="workspace-grid">
+      <section class="panel inspiration-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">阶段 1</p>
+            <h2>灵感输入</h2>
+          </div>
+          <button class="icon-btn" id="spinIdeas" aria-label="随机刷新灵感">✦</button>
+        </div>
+
+        <div class="slot-machine">
+          <div class="slot-reel">
+            <span class="slot-label">题材</span>
+            <strong id="genreResult">重生复仇</strong>
+          </div>
+          <div class="slot-reel">
+            <span class="slot-label">主角</span>
+            <strong id="heroResult">禁欲霸总</strong>
+          </div>
+          <div class="slot-reel">
+            <span class="slot-label">反派</span>
+            <strong id="villainResult">心机白月光</strong>
+          </div>
+        </div>
+
+        <div class="chip-block">
+          <label>短剧类型</label>
+          <div class="chip-list" data-field="genre"></div>
+        </div>
+
+        <div class="chip-block">
+          <label>创作模式</label>
+          <div class="chip-list" data-field="mode"></div>
+        </div>
+
+        <div class="field-grid">
+          <label>
+            主角设定
+            <textarea id="heroInput" rows="3" placeholder="例如：高冷总裁，惜字如金，但在关键时刻情绪失控。"></textarea>
+          </label>
+          <label>
+            反派设定
+            <textarea id="villainInput" rows="3" placeholder="例如：表面温柔，实则步步设局，擅长利用舆论。"></textarea>
+          </label>
+          <label>
+            情节主线
+            <textarea id="plotInput" rows="4" placeholder="例如：女主重生回签离婚协议当天，决定设局反杀。"></textarea>
+          </label>
+          <label>
+            自定义标签
+            <input id="customTagInput" type="text" placeholder="输入新的题材或角色关键词，例如：流浪汉、假结婚、直播翻车">
+          </label>
+        </div>
+
+        <div class="prompt-card">
+          <div>
+            <p class="prompt-title">角色映射提示词</p>
+            <p id="promptPreview">语言风格：每句不超过 15 字，多用反问句，压缩情绪表达。</p>
+          </div>
+          <button class="ghost-btn small" id="optimizeInput">调用输入优化 Agent</button>
+        </div>
+      </section>
+
+      <section class="panel sandbox-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">阶段 2</p>
+            <h2>群聊式推演沙盒</h2>
+          </div>
+          <div class="live-state">
+            <span class="live-dot"></span>
+            <span id="streamStatus">待机中</span>
+          </div>
+        </div>
+
+        <div class="sandbox-layout">
+          <aside class="outline-tree">
+            <h3>剧本结构树</h3>
+            <ul id="outlineTree"></ul>
+          </aside>
+
+          <div class="chat-stage">
+            <div class="chat-toolbar">
+              <span>角色演绎区</span>
+              <button class="ghost-btn small" id="clearStage">清空记录</button>
+            </div>
+            <div class="chat-feed" id="chatFeed"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel control-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">阶段 3</p>
+            <h2>导演与监制控制</h2>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label for="roundLimit">最大演绎轮数</label>
+          <input id="roundLimit" type="range" min="3" max="12" value="6">
+          <div class="range-meta">
+            <span>3 轮</span>
+            <strong id="roundValue">6 轮</strong>
+            <span>12 轮</span>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label for="timelineSlider">回档控制</label>
+          <input id="timelineSlider" type="range" min="0" max="100" value="38">
+          <div class="range-meta">
+            <span>开场</span>
+            <strong id="timelineValue">第 4 句</strong>
+            <span>当前</span>
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button class="warning-btn" id="cutScene">咔 Cut</button>
+          <button class="primary-btn" id="continueScene">Continue</button>
+        </div>
+
+        <label class="director-box">
+          导演指令
+          <textarea id="directorCommand" rows="5" placeholder="例如：@霸总，这时候不要犹豫，直接把报告撕了。"></textarea>
+        </label>
+
+        <div class="action-row stack">
+          <button class="ghost-btn" id="sendDirective">下达角色指令</button>
+          <button class="ghost-btn" id="producerSuggest">生成监制建议</button>
+        </div>
+
+        <div class="monitor-card">
+          <p class="prompt-title">监制 Agent 观察</p>
+          <ul id="monitorFeed"></ul>
+        </div>
+      </section>
+
+      <section class="panel output-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">阶段 4</p>
+            <h2>格式输出</h2>
+          </div>
+          <button class="primary-btn small" id="formatScript">生成标准剧本</button>
+        </div>
+
+        <div class="output-layout">
+          <article class="script-preview">
+            <h3>影视工业格式预览</h3>
+            <pre id="scriptOutput"></pre>
+          </article>
+          <article class="api-card">
+            <h3>接口占位</h3>
+            <code id="apiSnippet">POST /api/agent/run-scene</code>
+            <p>
+              当前前端已封装请求载荷结构，后端接入时只需替换示例方法即可接入真实 Agent 编排、SSE 输出与导出链路。
+            </p>
+            <button class="ghost-btn small" id="mockRequest">查看请求示例</button>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <template id="messageTemplate">
+    <article class="chat-message">
+      <div class="message-role"></div>
+      <div class="message-body"></div>
+    </article>
+  </template>
+
+  <script src="./app.js"></script>
+</body>
+</html>
