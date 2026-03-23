@@ -66,7 +66,7 @@ input[type="text"]:focus {
 }
 
 .page-shell {
-  width: min(1440px, calc(100% - 32px));
+  width: min(1580px, calc(100% - 28px));
   margin: 24px auto 40px;
 }
 
@@ -177,7 +177,7 @@ input[type="text"]:focus {
 
 .workspace-grid {
   display: grid;
-  grid-template-columns: 1.05fr 1.4fr 0.9fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 18px;
   margin-top: 18px;
 }
@@ -201,7 +201,11 @@ input[type="text"]:focus {
 }
 
 .output-panel {
-  grid-column: 2 / 4;
+  grid-column: 1 / -1;
+}
+
+.sandbox-panel {
+  grid-column: 1 / -1;
 }
 
 .panel-heading {
@@ -331,7 +335,7 @@ input[type="text"]:focus {
 
 .sandbox-layout {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
   gap: 16px;
   min-height: 560px;
 }
@@ -362,6 +366,9 @@ input[type="text"]:focus {
   display: grid;
   grid-template-rows: auto 1fr;
   min-height: 0;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .chat-toolbar {
@@ -376,13 +383,38 @@ input[type="text"]:focus {
   align-content: start;
   gap: 12px;
   overflow: auto;
-  padding-right: 6px;
+  min-height: 0;
+  max-height: 560px;
+  padding-right: 8px;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(196, 82, 45, 0.65) rgba(31, 95, 132, 0.08);
+}
+
+.chat-feed::-webkit-scrollbar {
+  width: 10px;
+}
+
+.chat-feed::-webkit-scrollbar-track {
+  background: rgba(31, 95, 132, 0.08);
+  border-radius: 999px;
+}
+
+.chat-feed::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(196, 82, 45, 0.75), rgba(142, 52, 23, 0.82));
+  border-radius: 999px;
+  border: 2px solid rgba(255, 249, 240, 0.74);
+}
+
+.chat-feed::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(196, 82, 45, 0.95), rgba(142, 52, 23, 0.98));
 }
 
 .chat-message {
   display: grid;
   gap: 8px;
-  padding: 14px 16px;
+  padding: 16px 18px;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid rgba(111, 82, 56, 0.1);
@@ -411,6 +443,10 @@ input[type="text"]:focus {
 
 .message-body {
   line-height: 1.7;
+  font-size: 1.02rem;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .live-state {

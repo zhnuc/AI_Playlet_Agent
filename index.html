@@ -40,6 +40,34 @@
     </header>
 
     <main class="workspace-grid">
+      <section class="panel sandbox-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">阶段 2</p>
+            <h2>群聊式推演沙盒</h2>
+          </div>
+          <div class="live-state">
+            <span class="live-dot"></span>
+            <span id="streamStatus">待机中</span>
+          </div>
+        </div>
+
+        <div class="sandbox-layout">
+          <aside class="outline-tree">
+            <h3>剧本结构树</h3>
+            <ul id="outlineTree"></ul>
+          </aside>
+
+          <div class="chat-stage">
+            <div class="chat-toolbar">
+              <span>角色演绎区</span>
+              <button class="ghost-btn small" id="clearStage">清空记录</button>
+            </div>
+            <div class="chat-feed" id="chatFeed"></div>
+          </div>
+        </div>
+      </section>
+
       <section class="panel inspiration-panel">
         <div class="panel-heading">
           <div>
@@ -99,34 +127,6 @@
             <p id="promptPreview">语言风格：每句不超过 15 字，多用反问句，压缩情绪表达。</p>
           </div>
           <button class="ghost-btn small" id="optimizeInput">调用输入优化 Agent</button>
-        </div>
-      </section>
-
-      <section class="panel sandbox-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="panel-kicker">阶段 2</p>
-            <h2>群聊式推演沙盒</h2>
-          </div>
-          <div class="live-state">
-            <span class="live-dot"></span>
-            <span id="streamStatus">待机中</span>
-          </div>
-        </div>
-
-        <div class="sandbox-layout">
-          <aside class="outline-tree">
-            <h3>剧本结构树</h3>
-            <ul id="outlineTree"></ul>
-          </aside>
-
-          <div class="chat-stage">
-            <div class="chat-toolbar">
-              <span>角色演绎区</span>
-              <button class="ghost-btn small" id="clearStage">清空记录</button>
-            </div>
-            <div class="chat-feed" id="chatFeed"></div>
-          </div>
         </div>
       </section>
 

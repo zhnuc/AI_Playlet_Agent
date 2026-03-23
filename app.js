@@ -21,7 +21,13 @@ const outlineSeed = [
 
 const demoScene = [
   { type: "action", role: "Action", text: "总裁办公室，文件散落，雨夜灯光切进玻璃幕墙。" },
-  { type: "dialogue", role: "顾沉舟", text: "协议我不签。你想走，凭什么？" },
+  { type: "dialogue", role: "顾沉舟", text: `协议我不签。
+
+你想走？
+
+凭什么。
+
+凭什么啊啊啊啊啊啊啊啊啊啊啊啊？` },
   { type: "inner", role: "林晚", text: "前世我在这一步输了，这次我要让每个人都付代价。" },
   { type: "dialogue", role: "白薇", text: "顾总，她不过是在演戏，你还真信了？" },
   { type: "action", role: "Action", text: "林晚把录音笔按在桌面上，红灯亮起。" },
@@ -52,11 +58,42 @@ const modeBadge = document.querySelector("#modeBadge");
 const messageTemplate = document.querySelector("#messageTemplate");
 
 const state = {
-  selectedGenre: options.genre[0],
-  selectedMode: options.mode[0],
+  selectedGenre: genreResult.textContent.trim() || options.genre[0],
+  selectedMode: modeBadge.textContent.trim() || options.mode[0],
   isStreaming: false,
   messages: [...demoScene]
 };
+
+function initializeDefaults() {
+  const heroInput = document.querySelector("#heroInput");
+  const villainInput = document.querySelector("#villainInput");
+  const plotInput = document.querySelector("#plotInput");
+
+  if (!genreResult.textContent.trim()) {
+    genreResult.textContent = state.selectedGenre;
+  }
+  if (!heroResult.textContent.trim()) {
+    heroResult.textContent = options.heroes[0];
+  }
+  if (!villainResult.textContent.trim()) {
+    villainResult.textContent = options.villains[0];
+  }
+  if (!promptPreview.textContent.trim()) {
+    promptPreview.textContent = promptMap.高冷;
+  }
+  if (!heroInput.value.trim()) {
+    heroInput.value = `${heroResult.textContent.trim()}，强控制欲，表面冷静，关键时刻会主动掀桌。`;
+  }
+  if (!villainInput.value.trim()) {
+    villainInput.value = `${villainResult.textContent.trim()}，擅长操控他人判断，喜欢在众人面前制造误会。`;
+  }
+  if (!plotInput.value.trim()) {
+    plotInput.value = `围绕“${genreResult.textContent.trim()}”展开，要求首场戏就发生公开冲突，并在本集结尾留下身份反转。`;
+  }
+  if (!scriptOutput.textContent.trim()) {
+    createFormattedScript();
+  }
+}
 
 function renderChips(field, values, selected) {
   const container = document.querySelector(`.chip-list[data-field="${field}"]`);
@@ -288,7 +325,6 @@ renderAllChips();
 renderOutline();
 renderMonitorFeed();
 renderMessages();
-randomizeIdeas();
+initializeDefaults();
 updateRoundDisplay();
 updateTimelineDisplay();
-createFormattedScript();
