@@ -14,16 +14,31 @@ def run():
     # ---------- 载入基本配置 ----------
     base_url,api_key,model=load_env()
     planner_prompt_factory=Planner_Agent_Prompt(global_config)
-    planner_agent=Planner_Agent(base_url,api_key,model)
+    planner_agent=Planner_Agent(base_url,api_key,model,global_config)
     actor_agent_box=Actor_Agent_Box(base_url,api_key,model,global_config)
     director_agent_box=Director_Agent_Box(base_url,api_key,model,global_config)
 
     # ========== 调用总策划Agent ==========
+    error_step=1
+    max_planner_error=3
+
     prompt=planner_prompt_factory.generate_prompt()
     planner_output=planner_agent.generate_outline(prompt)
-    if planner_output in ["format_error","api_error"]:
-        print("\n初始大纲生成失败,自动退出系统\n")
-        return 
+
+    # ----- 处理总策划Agent输出错误 -----
+    if planner_output in ["format_error","api_error","name_error"]:
+        error_step=1
+        while(error_step<=max_planner_error):
+            prompt=planner_prompt_factory.generate_prompt(error=planner_output)
+            planner_output=planner_agent.generate_outline(prompt)
+            if planner_output in ["format_error","api_error","name_error"]:
+                error_step+=1
+                if error_step>max_planner_error:
+                    print(f"\n总策划Agent输出错误{max_planner_error}次,强制退出系统\n")
+                    return 
+            else:
+                break
+
     else:
         print("\n========== 剧本大纲生成完成 ===========\n")
         print(json.dumps(planner_output,indent=2,ensure_ascii=False))
@@ -49,9 +64,20 @@ def run():
             print("\n总策划Agent将根据您的意见修改大纲\n")
             prompt=planner_prompt_factory.generate_prompt(feedback)
             planner_output=planner_agent.generate_outline(prompt)
-            if planner_output in ["format_error","api_error"]:
-                print("\n初始大纲生成失败,自动退出系统\n")
-                return 
+            
+            # ----- 处理总策划Agent输出错误 -----
+            if planner_output in ["format_error","api_error","name_error"]:
+                error_step=1
+                while(error_step<=max_planner_error):
+                    prompt=planner_prompt_factory.generate_prompt(error=planner_output)
+                    planner_output=planner_agent.generate_outline(prompt)
+                    if planner_output in ["format_error","api_error","name_error"]:
+                        error_step+=1
+                        if error_step>max_planner_error:
+                            print(f"\n总策划Agent输出错误{max_planner_error}次,强制退出系统\n")
+                            return 
+                    else:
+                        break
             
             else:
                 print("\n========== 剧本大纲生成完成 ===========\n")

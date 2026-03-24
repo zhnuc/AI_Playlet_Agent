@@ -1,4 +1,5 @@
 import textwrap
+from error import Planner_Agent_Error,Actor_Agent_Error
 
 
 class Planner_Agent_Prompt():
@@ -6,9 +7,10 @@ class Planner_Agent_Prompt():
     def __init__(self,global_config):
         
         self.global_config=global_config
+        self.planner_agent_error=Planner_Agent_Error()
 
     # ---------- 生成总策划Agent的prompt -----------
-    def generate_prompt(self,user_feedback=None):
+    def generate_prompt(self,user_feedback=None,error=None):
 
         # ----- 拼接角色信息 -----
         chara_text=""
@@ -23,13 +25,16 @@ class Planner_Agent_Prompt():
 
         # ----- 确定所有合法角色名 -----
         valid_names=list(self.global_config["character_roster"].keys())
-        valid_names_str=",".join(valid_names)
 
         # ----- 将用户反馈融入提示词 -----
         if user_feedback is not None:
             feedback_prompt=f"\n# User Feedback:\n制片人(用户)针对你生成的内容,提出了如下意见:{user_feedback}\n你必须将其作为最高优先级,根据指示生成内容"
         else:
             feedback_prompt=""
+
+        # ----- 根据Agent错误生成错误提示prompt -----
+        error_prompt=""
+        error_prompt=self.planner_agent_error.generate_error_prompt(error,valid_names)
 
         prompt=textwrap.dedent(f"""
                                 # Role:
@@ -46,6 +51,7 @@ class Planner_Agent_Prompt():
                                 以下是本剧出场的核心角色卡(你必须严格遵循他们的性格和动机,挖掘他们之间的冲突):
                                 {chara_text}
                                 {feedback_prompt}
+
                                 # Task:
                                 你的任务是根据以上信息,规划出全剧{self.global_config['drama_settings']['expected_episodes']}集的剧情大纲
 
@@ -55,16 +61,16 @@ class Planner_Agent_Prompt():
                                 3.角色锦囊(Directives):这是指导后续AI演员表演的最高纲领!必须具体可执行,绝不能写空话,内容要具体
 
                                 # Output Format(Strict JSON):
-                                严格按照以下JSON格式输出(只能输出JSON格式,不要输出任何额外的解释性文字,也不要输出Markdown):
+                                严格按照以下 JSON 格式输出(只能输出 JSON 格式,不要输出任何额外的解释性文字,也不要输出 Markdown ):
                                 {{"episodes":[{{"episode_number":1,
                                                 "global_plot":"(一句话总结本集剧情精髓)",
                                                 "place":"(本集的单一主要场景、尽量集中,例如晚宴大厅)",
                                                 "core_conflict":"(本集的具体矛盾爆发点)",
                                                 "plot_twist_or_hook":"(本集结尾的钩子/悬念)",
-                                                "first_speaker":"(本集第一个开口说话的角色名字:绝对不能乱编或者改名字,绝对禁止填入主持人、警察、医生、路人等NPC,必须且只能从[{valid_names_str}]中选择一个!)",
-                                                "character_directives":{{"(必须是角色库中已有角色名)":"[本集情绪]:... [本集目标]:... [行动策略]:...",
-                                                                         "(必须是角色库中已有角色名)":"[本集情绪]:... [本集目标]:... [行动策略]:...",
-                                                                         "(必须是角色库中已有角色名)":"[本集情绪]:... [本集目标]:... [行动策略]:..."}}}}]}}
+                                                "first_speaker":"(本集第一个开口说话的角色名字:绝对不能乱编或者改名字,必须且只能从 {valid_names} 中选择一个!)",
+                                                "character_directives":{{"( {valid_names} 中的角色名)":"[本集情绪]:... [本集目标]:... [行动策略]:..."}}}}]}}
+
+                                {error_prompt}
                                 """).strip()
         
         return prompt
@@ -75,9 +81,10 @@ class Actor_Agent_Prompt():
     def __init__(self,global_config):
 
         self.global_config=global_config
+        self.actor_agent_prompt=Actor_Agent_Error()
 
     # ---------- 生成角色Agent提示词 ----------
-    def generate_prompt(self,planner_output,name,episode,history,user_feedback=None,agent_feedback=None,force_speaker=None) -> str :
+    def generate_prompt(self,planner_output,name,episode,history,user_feedback=None,agent_feedback=None,force_speaker=None,error=None) -> str :
 
         # ----- Agent扮演角色的信息 -----
         own_chara=""
@@ -98,7 +105,6 @@ class Actor_Agent_Prompt():
 
         # ----- 确定所有合法角色名 -----
         valid_names=list(self.global_config["character_roster"].keys())
-        valid_names=",".join(valid_names)
 
         # ----- 添加用户指导 -----   
         if user_feedback:
@@ -108,13 +114,17 @@ class Actor_Agent_Prompt():
             history+=f"[来自场外总监制Agent的指令]:{agent_feedback}(请你根据总监制Agent的指导和历史互动信息重演)\n"
 
         if force_speaker:
-            current_rule="1.传麦机制:我们已经指定好了下一个互动的角色,本次互动你需要在 next_speaker 字段中强制输出[],即空列表"
+            current_rule="1.传麦机制:我们已经指定好了下一个互动的角色,本次互动你需要在 next_speaker 字段中强制输出 [] ,即空列表"
             current_format='"next_speaker":[]'
 
         else:
             current_rule=f"""1.传麦机制:你必须在 next_speaker 字段指定你希望谁对你的行为做出反应,可以是一个人,也可以是多个人
-                               警告:你只能从{valid_names}中选择,绝不能凭空捏造配角!"""
+                               警告:你只能从 {valid_names} 中选择,绝不能凭空捏造配角!"""
             current_format='''"next_speaker":["(这是一个列表,包含你互动面对的角色,即你希望对你的行为做出反应的角色,可以是一个或多个元素,例如['角色B'],或['角色B','角色C'],如果想结束本集填['end'])"]'''
+
+        # ----- 根据Agent错误生成错误提示prompt -----
+        error_prompt=""
+        error_prompt=self.actor_agent_prompt.generate_error_prompt(error,valid_names)
 
         # 使用textwrap消除多余的空格,减少token浪费
         prompt=textwrap.dedent(f"""
@@ -155,6 +165,8 @@ class Actor_Agent_Prompt():
                                                       "Dialogue":"(说出口的台词,或者可填'null')",
                                                       {current_format},
                                                       "visible":["(这是一个列表,包含所有能看到/听到你互动的角色,可以是一个或多个元素)"]}}}}
+                                
+                                {error_prompt}
                                 """).strip()
 
         return prompt

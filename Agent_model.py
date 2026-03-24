@@ -38,12 +38,13 @@ def clean_json_markdown(raw_json_text):
 
 class Planner_Agent():
 
-    def __init__(self,base_url,api_key,model):
+    def __init__(self,base_url,api_key,model,global_config):
 
         self.base_url=base_url
         self.api_key=api_key
         self.model=model
         self.client=OpenAI(base_url=self.base_url,api_key=self.api_key)
+        self.global_config=global_config
 
     def generate_outline(self,prompt):
 
@@ -60,13 +61,23 @@ class Planner_Agent():
             
             try:
                 raw_json=json.loads(raw_text)
+                
+                for i in range(len(raw_json["episodes"])):
+                    first_name=raw_json["episodes"][i]["first_speaker"]
+                    dire_name=raw_json["episodes"][i]["character_directives"].keys()
+                    if first_name not in self.global_config["character_roster"].keys():
+                        return "name_error"
+                    for dire_n in dire_name:
+                        if dire_n not in self.global_config["character_roster"].keys():
+                            return "name_error"
+
                 return raw_json
             
             # 展示模型错误输出
             except Exception as e:
                 print(f"总策划Agent输出格式错误:{e}")
                 print(f"[Debug]模型输出:{repr(raw_text)}")
-                return "format_error"
+                return "json_error"
             
         except Exception as e:
             print(f"总策划Agent调用Api失败:{e}")
@@ -87,37 +98,33 @@ class Actor_Agent_Box():
         self.actor_agent_prompt=Actor_Agent_Prompt(self.global_config)       
     
     # ---------- 创建角色Agent提示词 ----------
-    def generate_prompt(self,planner_output,name,episode,user_feedback=None,agent_feedback=None,force_speaker=None) -> str :
+    def generate_prompt(self,planner_output,name,episode,user_feedback=None,agent_feedback=None,force_speaker=None,error=None) -> str :
 
-        if name not in self.global_config["character_roster"].keys():
-            return "name_error"
-        
-        else:
-            history=""
-            if episode not in self.global_history:
-                self.global_history[episode]=[]
+        history=""
+        if episode not in self.global_history:
+            self.global_history[episode]=[]
 
-            visible_history=[]
-            for epi in range(1,episode+1):
-                if epi in self.global_history:
-                    for his in self.global_history[epi]:
-                        if name==his["role"]:
+        visible_history=[]
+        for epi in range(1,episode+1):
+            if epi in self.global_history:
+                for his in self.global_history[epi]:
+                    if name==his["role"]:
+                        visible_history.append(his)
+                    else:
+                        visible_list=his["visible"]
+                        if (isinstance(visible_list,list)) and (name in visible_list):
                             visible_history.append(his)
-                        else:
-                            visible_list=his["visible"]
-                            if (isinstance(visible_list,list)) and (name in visible_list):
-                                visible_history.append(his)
 
-            # 截取部分历史互动,且Inner_Thought进行保密操作
-            for vis_his in visible_history[-6:]:        
-                history+="\n".join([f"role:{vis_his['role']}",f"Action:{vis_his['Action']}",f"Dialogue:{vis_his['Dialogue']}"])
-                history+="\n\n"
-            
-            # 处理角色面临历史信息为空的状况
-            if not history.strip():
-                history="(当前无历史互动,你直接开场行动)"
-            
-            return self.actor_agent_prompt.generate_prompt(planner_output,name,episode,history,user_feedback,agent_feedback,force_speaker)
+        # 截取部分历史互动,且Inner_Thought进行保密操作
+        for vis_his in visible_history[-6:]:        
+            history+="\n".join([f"role:{vis_his['role']}",f"Action:{vis_his['Action']}",f"Dialogue:{vis_his['Dialogue']}"])
+            history+="\n\n"
+        
+        # 处理角色面临历史信息为空的状况
+        if not history.strip():
+            history="(当前无历史互动,你直接开场行动)"
+        
+        return self.actor_agent_prompt.generate_prompt(planner_output,name,episode,history,user_feedback,agent_feedback,force_speaker,error)
 
     # ---------- 调用角色Agent输出 ----------
     def generate_reaction(self,name,message:list[dict[str,str]],episode) -> Union[list,str] : 
@@ -136,7 +143,25 @@ class Actor_Agent_Box():
 
             try:
                 raw_json=json.loads(raw_text)
+                
+                # ----- 检验name/next_speaker/关键字段 ----- 
                 if name in raw_json and all(k in raw_json[name] for k in ["Inner_Thought","Action","Dialogue","next_speaker","visible"]):
+                    
+                    next_speaker_list=raw_json[name]["next_speaker"]
+                    valid_names=list(self.global_config["character_roster"].keys())
+                    valid_end=["end","'end'",'"end"',"‘end’",'“end”']
+
+                    if not isinstance(next_speaker_list,list):
+                        print("角色Agent的 next_speaker 输出不是 list 格式")
+                        print(f"[Debug]:角色Agent错误输出:{repr(raw_json)}")
+                        return "next_speaker_format_error"
+
+                    for speaker in next_speaker_list:
+                        if (speaker.strip() not in valid_names) and (speaker.strip() not in valid_end):
+                            print("角色Agent的 next_speaker 输出内容错误,不在角色库,也不是 end ")
+                            print(f"[Debug]:角色Agent错误输出:{repr(raw_json)}")
+                            return "next_speaker_name_error"
+
                     reaction={}
                     reaction["step"]=len(self.global_history[episode])+1
                     reaction["role"]=name
@@ -149,16 +174,19 @@ class Actor_Agent_Box():
                     return raw_json[name]["next_speaker"]
                 
                 elif name not in raw_json.keys():
-                    print(f"扮演角色{name}的Agent输出是JSON格式,但是角色名错误,应该是{name}")
+                    print(f"角色Agent输出自身角色名错误,不是{name}")
+                    print(f"[Debug]:角色Agent错误输出:{repr(raw_json)}")
                     return "name_error"
-
-                else:
-                    print(f"扮演角色{name}的Agent输出是JSON格式,且角色名正确,但是字段不是Inner_Thought,Action,Dialogue,next_speaker,visible")
+                
+                elif not(all(k in raw_json[name] for k in ["Inner_Thought","Action","Dialogue","next_speaker","visible"])):
+                    print(f"角色Agent输出关键字段错误,不是 Inner_Thought / Action / Dialogue / next_speaker / visible ")
+                    print(f"[Debug]:角色Agent错误输出:{repr(raw_json)}")
                     return "key_error"
 
             except Exception as e:
-                print(f"扮演角色{name}的Agent输出格式不是JSON格式")
-                return "format_error"
+                print(f"角色Agent的输出不是 JSON 格式")
+                print(f"[Debug]:角色Agent错误输出:{repr(raw_text)}")
+                return "json_error"
 
         except Exception as e:
             print(f"扮演角色{name}的Agent的Api调用失败:{e}")
