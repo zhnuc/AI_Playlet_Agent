@@ -1,10 +1,16 @@
 # 该文件定义剧情运行期的核心状态结构。
-#* 包括事件、角色记忆、全局故事上下文和运行时状态，
+# 包括事件、角色记忆、全局故事上下文和运行时状态，
 # 供主循环、日志和上下文管理模块共享使用。
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 DEFAULT_ROLE_GOAL = "根据当前场景自然推进剧情"
+INTERACTION_MODE_NORMAL = "normal"
+INTERACTION_MODE_PENDING_REPLIES = "pending_replies"
+RunMode = Literal["planned", "free"]
+BEAT_STATUS_PENDING = "pending"
+BEAT_STATUS_ACTIVE = "active"
+BEAT_STATUS_COMPLETED = "completed"
 
 
 @dataclass
@@ -36,6 +42,39 @@ class RoleMemory:
 
 
 @dataclass
+class InteractionState:
+    """定义当前场景的互动控制状态。"""
+
+    mode: str = INTERACTION_MODE_NORMAL
+    initiator: str | None = None
+    pending_queue: list[str] = field(default_factory=list)
+    trigger_event_id: str | None = None
+
+
+@dataclass
+class EpisodeBeat:
+    """Definition for a single runtime beat."""
+
+    beat_id: str
+    label: str
+    objective: str
+    must_land: str
+    exit_condition: str
+    suggested_speakers: list[str] = field(default_factory=list)
+
+
+@dataclass
+class BeatState:
+    """Runtime beat progress tracker."""
+
+    beats: list[EpisodeBeat] = field(default_factory=list)
+    active_index: int = 0
+    last_advanced_turn: int = 0
+    status: str = BEAT_STATUS_PENDING
+    completion_notes: list[str] = field(default_factory=list)
+
+
+@dataclass
 class StoryContext:
     """定义当前剧情的全局状态。"""
 
@@ -55,6 +94,8 @@ class RuntimeState:
 
     story: StoryContext
     role_memories: dict[str, RoleMemory]
+    interaction: InteractionState = field(default_factory=InteractionState)
+    beat_state: BeatState = field(default_factory=BeatState)
 
 
 @dataclass
@@ -153,7 +194,11 @@ def create_runtime_state(
         scene_roles=episode_plan["scene_roles"],
     )
     role_memories = build_role_memories(global_config, episode_plan, previous_role_memories=previous_role_memories)
-    return RuntimeState(story=story, role_memories=role_memories)
+    return RuntimeState(
+        story=story,
+        role_memories=role_memories,
+        interaction=InteractionState(),
+    )
 
 
 def create_season_context(planner_output: dict[str, Any], run_id: str) -> SeasonContext:
@@ -206,3 +251,11 @@ def get_event_by_id(runtime_state: RuntimeState, event_id: str) -> Event | None:
         if event.event_id == event_id:
             return event
     return None
+
+
+def reset_interaction_state(runtime_state: RuntimeState) -> None:
+    """将运行时的多人互动控制状态重置为普通模式。"""
+    runtime_state.interaction.mode = INTERACTION_MODE_NORMAL
+    runtime_state.interaction.initiator = None
+    runtime_state.interaction.pending_queue = []
+    runtime_state.interaction.trigger_event_id = None

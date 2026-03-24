@@ -41,6 +41,26 @@ def build_event(
     )
 
 
+def commit_system_event(
+    runtime_state: RuntimeState,
+    kind: str,
+    speaker: str,
+    content: str,
+    visible_to: list[str] | None = None,
+) -> Event:
+    """提交系统、导演或监制事件。"""
+    event = build_event(
+        runtime_state,
+        step=runtime_state.story.current_turn,
+        kind=kind,
+        speaker=speaker,
+        content=content,
+        visible_to=visible_to if visible_to is not None else list(runtime_state.story.scene_roles),
+    )
+    append_event(runtime_state, event)
+    return event
+
+
 def commit_turn_result(runtime_state: RuntimeState, speaker: str, turn_output: dict) -> list[Event]:
     """提交当前角色的一轮输出并写入事件日志。"""
     runtime_state.story.current_turn += 1

@@ -3,10 +3,12 @@
 # 并对模型返回的 JSON 结构做基础解析与校验。
 import json
 import os
+from time import perf_counter
 from typing import Any
 
 from dotenv import load_dotenv
 from openai import OpenAI
+from scheduler import extract_next_speakers
 
 
 def load_env() -> tuple[str, str, str]:
@@ -29,8 +31,27 @@ def load_env() -> tuple[str, str, str]:
 
 def is_valid_role_response(payload: dict, role_name: str) -> bool:
     """校验角色 agent 的输出字段是否完整。"""
-    required_keys = {"Inner_Thought", "Action", "Dialogue", "next_speaker"}
-    return role_name in payload and required_keys.issubset(payload[role_name].keys())
+    required_keys = {"Inner_Thought", "Action", "Dialogue"}
+    if role_name not in payload:
+        return False
+    role_payload = payload[role_name]
+    if not required_keys.issubset(role_payload.keys()):
+        return False
+    return "next_speaker" in role_payload or "next_speakers" in role_payload
+
+
+def normalize_role_output(role_name: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """将角色输出统一归一化为内部使用结构。"""
+    role_payload = payload[role_name]
+    next_speakers = extract_next_speakers(role_payload)
+    normalized_output = {
+        "Inner_Thought": str(role_payload.get("Inner_Thought", "") or ""),
+        "Action": str(role_payload.get("Action", "") or ""),
+        "Dialogue": str(role_payload.get("Dialogue", "") or ""),
+        "next_speakers": next_speakers,
+        "next_speaker": next_speakers[0] if len(next_speakers) == 1 else None,
+    }
+    return normalized_output
 
 
 def is_valid_summary_response(payload: dict[str, Any]) -> bool:
@@ -84,6 +105,18 @@ def parse_json_response(raw_text: str | None) -> dict:
     return json.loads(json_text)
 
 
+def _extract_usage_dict(response: Any) -> dict[str, Any]:
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return {}
+    usage_payload: dict[str, Any] = {}
+    for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
+        value = getattr(usage, key, None)
+        if value is not None:
+            usage_payload[key] = value
+    return usage_payload
+
+
 class Planner_Agent:
     """负责生成每集大纲的总策划 agent。"""
 
@@ -97,13 +130,20 @@ class Planner_Agent:
         print(f"总策划Agent正在策划分集大纲,使用模型{self.model}")
 
         try:
+            started_at = perf_counter()
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 temperature=0.0,
             )
+            elapsed_ms = round((perf_counter() - started_at) * 1000, 1)
             raw_text = response.choices[0].message.content
+            usage_payload = _extract_usage_dict(response)
+            print(
+                f"[PERF][MODEL][planner] ms={elapsed_ms} prompt_chars={len(prompt)} "
+                f"response_chars={len(raw_text or '')} usage={usage_payload}"
+            )
             return parse_json_response(raw_text)
         except (json.JSONDecodeError, ValueError) as exc:
             print(f"总策划Agent输出格式不正确:{exc}")
@@ -126,20 +166,34 @@ class Role_Agent_Box:
         print(f"角色{role_name}的Agent正在调用中...")
 
         try:
+            started_at = perf_counter()
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 temperature=0.0,
             )
+            elapsed_ms = round((perf_counter() - started_at) * 1000, 1)
             raw_text = response.choices[0].message.content
             raw_json = parse_json_response(raw_text)
+            usage_payload = _extract_usage_dict(response)
 
             if not is_valid_role_response(raw_json, role_name):
                 print(f"角色{role_name}的Agent输出字段不完整")
                 return "key_error"
 
-            return raw_json[role_name]
+            normalized_output = normalize_role_output(role_name, raw_json)
+            normalized_output["__meta"] = {
+                "model_elapsed_ms": elapsed_ms,
+                "usage": usage_payload,
+                "prompt_chars": len(prompt),
+                "response_chars": len(raw_text or ""),
+            }
+            print(
+                f"[PERF][MODEL][role={role_name}] ms={elapsed_ms} prompt_chars={len(prompt)} "
+                f"response_chars={len(raw_text or '')} usage={usage_payload}"
+            )
+            return normalized_output
         except (json.JSONDecodeError, ValueError) as exc:
             preview = (raw_text[:200] if "raw_text" in locals() and raw_text else "EMPTY")
             print(f"角色{role_name}的Agent输出格式不正确:{exc}")
@@ -190,14 +244,21 @@ class Summary_Agent:
 
         try:
             prompt = self.build_summary_prompt(role_inputs)
+            started_at = perf_counter()
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 temperature=0.0,
             )
+            elapsed_ms = round((perf_counter() - started_at) * 1000, 1)
             raw_text = response.choices[0].message.content
             raw_json = parse_json_response(raw_text)
+            usage_payload = _extract_usage_dict(response)
+            print(
+                f"[PERF][MODEL][summary] ms={elapsed_ms} prompt_chars={len(prompt)} "
+                f"response_chars={len(raw_text or '')} usage={usage_payload}"
+            )
             if not isinstance(raw_json, dict):
                 print("摘要Agent输出顶层不是 JSON 对象")
                 return "schema_error"

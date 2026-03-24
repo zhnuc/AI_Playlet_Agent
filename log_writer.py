@@ -93,6 +93,38 @@ def serialize_role_memories(role_memories: dict[str, RoleMemory]) -> dict[str, d
     }
 
 
+def serialize_interaction_state(runtime_state: RuntimeState) -> dict[str, Any]:
+    """整理多人互动控制状态，便于调试与回放。"""
+    return {
+        "mode": runtime_state.interaction.mode,
+        "initiator": runtime_state.interaction.initiator,
+        "pending_queue": list(runtime_state.interaction.pending_queue),
+        "trigger_event_id": runtime_state.interaction.trigger_event_id,
+    }
+
+
+def serialize_beat_state(runtime_state: RuntimeState) -> dict[str, Any]:
+    """Serialize the mutable beat-controller state."""
+    beat_state = runtime_state.beat_state
+    return {
+        "status": beat_state.status,
+        "active_index": beat_state.active_index,
+        "last_advanced_turn": beat_state.last_advanced_turn,
+        "completion_notes": list(beat_state.completion_notes),
+        "beats": [
+            {
+                "beat_id": beat.beat_id,
+                "label": beat.label,
+                "objective": beat.objective,
+                "must_land": beat.must_land,
+                "exit_condition": beat.exit_condition,
+                "suggested_speakers": list(beat.suggested_speakers),
+            }
+            for beat in beat_state.beats
+        ],
+    }
+
+
 def serialize_season_context(season_context: SeasonContext) -> dict[str, Any]:
     """将 SeasonContext 整理为可直接落盘的 JSON 结构。"""
     return {
@@ -155,6 +187,8 @@ def initialize_episode_log(
         },
         "character_directives": directives,
         "initial_role_memories": serialize_role_memories(runtime_state.role_memories),
+        "initial_interaction_state": serialize_interaction_state(runtime_state),
+        "initial_beat_state": serialize_beat_state(runtime_state),
         "turns": [],
         "result": None,
     }
@@ -164,15 +198,18 @@ def initialize_episode_log(
 
 def append_turn_log(
     log_path: Path,
+    runtime_state: RuntimeState,
     step: int,
     speaker: str,
     prompt: str,
     use_fallback_history: bool,
     turn_output: dict,
     committed_events: list[Event],
-    proposed_next_speaker: str | None,
-    resolved_next_speaker: str | None,
+    proposed_next_speaker: str | list[str] | None,
+    resolved_next_speaker: str | list[str] | None,
     status: str,
+    extra_events: list[Event] | None = None,
+    perf: dict[str, Any] | None = None,
 ) -> None:
     """将当前回合的角色原始输出追加到 JSON 日志。"""
     payload = read_episode_log(log_path)
@@ -187,13 +224,18 @@ def append_turn_log(
                 "Action": turn_output.get("Action", "").strip(),
                 "Dialogue": turn_output.get("Dialogue", "").strip(),
                 "next_speaker": turn_output.get("next_speaker"),
+                "next_speakers": list(turn_output.get("next_speakers", [])),
             },
             "committed_events": [serialize_event(event) for event in committed_events],
+            "system_events": [serialize_event(event) for event in (extra_events or [])],
+            "interaction_state": serialize_interaction_state(runtime_state),
+            "beat_state": serialize_beat_state(runtime_state),
             "routing": {
                 "proposed_next_speaker": proposed_next_speaker,
                 "resolved_next_speaker": resolved_next_speaker,
                 "status": status,
             },
+            "perf": perf or {},
         }
     )
     write_episode_log(log_path, payload)
@@ -214,6 +256,16 @@ def finalize_episode_log(
         "last_speaker": last_speaker,
         "total_turns": total_turns,
         "summary_status": summary_status,
+        "final_interaction_state": serialize_interaction_state(runtime_state),
+        "final_beat_state": serialize_beat_state(runtime_state),
         "final_role_memories": serialize_role_memories(runtime_state.role_memories),
     }
+    write_episode_log(log_path, payload)
+
+
+def truncate_episode_log(log_path: Path, keep_turns: int) -> None:
+    """回档时截断单集日志中的 turn 记录。"""
+    payload = read_episode_log(log_path)
+    payload["turns"] = payload.get("turns", [])[:keep_turns]
+    payload["result"] = None
     write_episode_log(log_path, payload)

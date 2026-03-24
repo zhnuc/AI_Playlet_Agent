@@ -4,8 +4,10 @@ version = "0.1.0"
 description = "AI 多智能体短剧项目 MVP"
 requires-python = ">=3.11,<3.12"
 dependencies = [
+    "fastapi>=0.115.0",
     "openai>=1.0.0",
     "python-dotenv>=1.0.0",
+    "uvicorn>=0.30.0",
 ]
 
 [tool.uv]
