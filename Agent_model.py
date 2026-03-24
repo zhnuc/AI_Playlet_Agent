@@ -1,11 +1,12 @@
 import json
-from openai import OpenAI
+from openai import OpenAI  
 import os
 from dotenv import load_dotenv
 from typing import Union
 
 
 from prompt import Actor_Agent_Prompt,Director_Agent_Prompt
+
 
 def load_env():
 
@@ -149,7 +150,7 @@ class Actor_Agent_Box():
                     
                     next_speaker_list=raw_json[name]["next_speaker"]
                     valid_names=list(self.global_config["character_roster"].keys())
-                    valid_end=["end","'end'",'"end"',"‘end’",'“end”']
+                    valid_end=["end","'end'",'"end"']
 
                     if not isinstance(next_speaker_list,list):
                         print("角色Agent的 next_speaker 输出不是 list 格式")
@@ -178,7 +179,7 @@ class Actor_Agent_Box():
                     print(f"[Debug]:角色Agent错误输出:{repr(raw_json)}")
                     return "name_error"
                 
-                elif not(all(k in raw_json[name] for k in ["Inner_Thought","Action","Dialogue","next_speaker","visible"])):
+                elif not(all(k in ["Inner_Thought","Action","Dialogue","next_speaker","visible"] for k in raw_json[name])):
                     print(f"角色Agent输出关键字段错误,不是 Inner_Thought / Action / Dialogue / next_speaker / visible ")
                     print(f"[Debug]:角色Agent错误输出:{repr(raw_json)}")
                     return "key_error"
@@ -219,50 +220,135 @@ class Director_Agent_Box():
         self.api_key=api_key
         self.model=model
         self.client=OpenAI(base_url=self.base_url,api_key=self.api_key)
-        self.director_agent_prompt=Director_Agent_Prompt(global_config)
+        self.global_config=global_config
+        self.director_agent_prompt=Director_Agent_Prompt(self.global_config)
 
     def generate_direction(self,prompt,pattern):
 
         print(f"\n{pattern}:总监制正在审查与指导中,使用模型{self.model}\n")
 
-        try:
-            response=self.client.chat.completions.create(model=self.model,
-                                                         messages=[{"role":"user","content":prompt}],
-                                                         response_format={"type":"json_object"},
-                                                         temperature=0.0)
-
-            raw_text=response.choices[0].message.content
-            # 清洗Markdown
-            raw_text=clean_json_markdown(raw_text)
-            
+        # ----- 总监制Agent(模式1)输出处理与检验 -----
+        if pattern=="[总监制-前中期巡视模式]":
             try:
-                raw_json=json.loads(raw_text)
-                return raw_json
-            
-            # 展示模型错误输出
+                response=self.client.chat.completions.create(model=self.model,
+                                                            messages=[{"role":"user","content":prompt}],
+                                                            response_format={"type":"json_object"},
+                                                            temperature=0.0)
+                raw_text=response.choices[0].message.content
+                # 清洗Markdown
+                raw_text=clean_json_markdown(raw_text)
+
+                valid_names=list(self.global_config["character_roster"].keys())
+
+                try:
+                    raw_json=json.loads(raw_text)
+                    if not all(k in raw_json.keys() for k in ["Analysis","Action_Type","Target_Role","Directive"]):
+                        return "key_error"
+                    
+                    elif raw_json["Action_Type"].strip() not in ["Pass","'Pass'",'"Pass"',"Current","'Current'",'"Current"',"Override","'Override'",'"Override"']:
+                        return "action_type_error"
+
+                    elif (raw_json["Target_Role"].strip() not in valid_names) and (raw_json["Target_Role"].strip() not in ["null","'null'",'"null"']):
+                        return "target_role_error"   
+                    
+                    else:
+                        return raw_json
+                                 
+                except Exception as e:
+                    print(f"总监制Agent输出格式错误:{e}")
+                    print(f"[Debug]模型输出:{repr(raw_text)}")
+                    return "json_error"
+                    
             except Exception as e:
-                print(f"总监制Agent输出格式错误:{e}")
-                print(f"[Debug]模型输出:{repr(raw_text)}")
-                return "format_error"
-                
-        except Exception as e:
-            print(f"总监制Agent调用Api失败:{e}")
-            return "api_error" 
-    
+                print(f"总监制Agent调用Api失败:{e}")
+                return "api_error" 
+            
+        # ----- 总监制Agent(模式2)输出处理与检验 -----
+        elif pattern=="[总监制-中后期收网模式]":
+            try:
+                response=self.client.chat.completions.create(model=self.model,
+                                                            messages=[{"role":"user","content":prompt}],
+                                                            response_format={"type":"json_object"},
+                                                            temperature=0.0)
+                raw_text=response.choices[0].message.content
+                # 清洗Markdown
+                raw_text=clean_json_markdown(raw_text)
+
+                valid_names=list(self.global_config["character_roster"].keys())
+
+                try:
+                    raw_json=json.loads(raw_text)
+                    if not all(k in raw_json.keys() for k in ["Analysis","Action_Type","Target_Role","Directive"]):
+                        return "key_error"
+                    
+                    elif raw_json["Action_Type"].strip() not in ["Current","'Current'",'"Current"',"Override","'Override'",'"Override"']:
+                        return "action_type_error"
+
+                    elif raw_json["Target_Role"].strip() not in valid_names:
+                        return "target_role_error"   
+
+                    else:
+                        return raw_json
+                                 
+                except Exception as e:
+                    print(f"总监制Agent输出格式错误:{e}")
+                    print(f"[Debug]模型输出:{repr(raw_text)}")
+                    return "json_error"
+                    
+            except Exception as e:
+                print(f"总监制Agent调用Api失败:{e}")
+                return "api_error" 
+
+        # ----- 总监制Agent(模式2)输出处理与检验 -----
+        elif pattern=="[总监制-杀青审核模式]":
+            try:
+                response=self.client.chat.completions.create(model=self.model,
+                                                            messages=[{"role":"user","content":prompt}],
+                                                            response_format={"type":"json_object"},
+                                                            temperature=0.0)
+                raw_text=response.choices[0].message.content
+                # 清洗Markdown
+                raw_text=clean_json_markdown(raw_text)
+
+                valid_names=list(self.global_config["character_roster"].keys())
+
+                try:
+                    raw_json=json.loads(raw_text)
+                    if not all(k in raw_json.keys() for k in ["Analysis","Approved","Rejected_Feedback"]):
+                        return "key_error"
+                    
+                    elif str(raw_json["Approved"]).strip() not in ["true","'true'",'"true"',"false","'false'",'"false"']:
+                        return "approved_error"
+
+                    elif (str(raw_json["Approved"]).strip() in ["false","'false'",'"false"']) and (str(raw_json["Target_Role"]).strip() not in valid_names):
+                        return "target_role_error"   
+                    
+                    else:
+                        return raw_json
+                                 
+                except Exception as e:
+                    print(f"总监制Agent输出格式错误:{e}")
+                    print(f"[Debug]模型输出:{repr(raw_text)}")
+                    return "json_error"
+                    
+            except Exception as e:
+                print(f"总监制Agent调用Api失败:{e}")
+                return "api_error" 
+
     # 模式1:前中期巡视 
-    def patrol(self,planner_output,episode,history,name,name_list):
+    def patrol(self,planner_output,episode,history,name,name_list,error=None):
         
-        prompt = self.director_agent_prompt.generate_patrol_prompt(planner_output,episode,history,name,name_list)
+        prompt=self.director_agent_prompt.generate_patrol_prompt(planner_output,episode,history,name,name_list,error=None,pattern="[总监制-前中期巡视模式]")
         return self.generate_direction(prompt,pattern="[总监制-前中期巡视模式]")
     
     # ---------- 模式2:中后期强制收网 ----------
-    def converge(self, planner_output, episode, history, name, name_list, next_first_speaker):
+    def converge(self,planner_output,episode,history,name,name_list,next_first_speaker,error=None):
 
-        prompt = self.director_agent_prompt.generate_convergence_prompt(planner_output,episode,history,name,name_list,next_first_speaker)
+        prompt = self.director_agent_prompt.generate_convergence_prompt(planner_output,episode,history,name,name_list,next_first_speaker,error=None,pattern="[总监制-中后期收网模式]")
         return self.generate_direction(prompt,pattern="[总监制-中后期收网模式]")
     
     # ---------- 模式3:杀青审核模式 ----------
-    def audit_end(self, planner_output, episode, history, next_first_speaker):
+    def audit_end(self,planner_output,episode,history,next_first_speaker,error=None):
         
-        prompt=self.director_agent_prompt.generate_audit_prompt(planner_output,episode,history,next_first_speaker)
+        prompt=self.director_agent_prompt.generate_audit_prompt(planner_output,episode,history,next_first_speaker,error=None,pattern="[总监制-杀青审核模式]")
         return self.generate_direction(prompt,pattern="[总监制-杀青审核模式]")

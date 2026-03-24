@@ -1,5 +1,5 @@
 import textwrap
-from error import Planner_Agent_Error,Actor_Agent_Error
+from error import Planner_Agent_Error,Actor_Agent_Error,Director_Agent_Error
 
 
 class Planner_Agent_Prompt():
@@ -8,6 +8,11 @@ class Planner_Agent_Prompt():
         
         self.global_config=global_config
         self.planner_agent_error=Planner_Agent_Error()
+
+    # ---------- 对齐prompt左侧缩紧 ----------
+    def normalize_prompt(self,prompt):
+
+        return "\n".join(line.lstrip() for line in prompt.splitlines()).strip()
 
     # ---------- 生成总策划Agent的prompt -----------
     def generate_prompt(self,user_feedback=None,error=None):
@@ -73,7 +78,7 @@ class Planner_Agent_Prompt():
                                 {error_prompt}
                                 """).strip()
         
-        return prompt
+        return self.normalize_prompt(prompt)
     
 
 class Actor_Agent_Prompt():
@@ -81,7 +86,12 @@ class Actor_Agent_Prompt():
     def __init__(self,global_config):
 
         self.global_config=global_config
-        self.actor_agent_prompt=Actor_Agent_Error()
+        self.actor_agent_error=Actor_Agent_Error()
+
+    # ---------- 对齐prompt左侧缩紧 ----------
+    def normalize_prompt(self,prompt):
+
+        return "\n".join(line.lstrip() for line in prompt.splitlines()).strip()
 
     # ---------- 生成角色Agent提示词 ----------
     def generate_prompt(self,planner_output,name,episode,history,user_feedback=None,agent_feedback=None,force_speaker=None,error=None) -> str :
@@ -124,7 +134,7 @@ class Actor_Agent_Prompt():
 
         # ----- 根据Agent错误生成错误提示prompt -----
         error_prompt=""
-        error_prompt=self.actor_agent_prompt.generate_error_prompt(error,valid_names)
+        error_prompt=self.actor_agent_error.generate_error_prompt(error,valid_names)
 
         # 使用textwrap消除多余的空格,减少token浪费
         prompt=textwrap.dedent(f"""
@@ -169,16 +179,22 @@ class Actor_Agent_Prompt():
                                 {error_prompt}
                                 """).strip()
 
-        return prompt
+        return self.normalize_prompt(prompt)
     
 class Director_Agent_Prompt():
 
     def __init__(self,global_config):
 
         self.global_config=global_config
+        self.director_agent_error=Director_Agent_Error()
+
+    # ---------- 对齐prompt左侧缩紧 ----------
+    def normalize_prompt(self,prompt):
+
+        return "\n".join(line.lstrip() for line in prompt.splitlines()).strip()
 
     # ---------- 总监制Agent前中期调控进度模式 ---------- 
-    def generate_patrol_prompt(self,planner_output,episode,history,name,name_list):
+    def generate_patrol_prompt(self,planner_output,episode,history,name,name_list,error,pattern):
 
         chara_text=""
         for chara_name,info in self.global_config["character_roster"].items():
@@ -187,8 +203,12 @@ class Director_Agent_Prompt():
             chara_text+=f"-[基础信息]:{info['gender']},{info['age']}岁,{info['identity']}\n"
             chara_text+=f"-[性格]:{personality}\n"
 
+        # ----- 确定所有合法角色名 -----
         valid_names=list(self.global_config["character_roster"].keys())
-        valid_names=",".join(valid_names)
+
+        # ----- 处理总监制Agent(模式1)输出错误 -----
+        error_prompt=""
+        error_prompt=self.director_agent_error.generate_error_prompt(pattern,error,valid_names)
 
         prompt=textwrap.dedent(f"""
                                 # Role:
@@ -228,12 +248,14 @@ class Director_Agent_Prompt():
                                 - Pass :演得很好,不需要干预
                                 - Current :顺序没问题,但需要指导即将上场的{name}怎么演才能更劲爆。
                                 - Override :强行换人,打断当前排队互动的演员,强行切镜头给你指定的 Target_Role ,让他立刻出来扭转局面！
+                                
+                                {error_prompt}
                                 """).strip()
         
-        return prompt
+        return self.normalize_prompt(prompt)
     
     # ---------- 总监制Agent中后期收尾模式 ----------
-    def generate_convergence_prompt(self,planner_output,episode,history,name,name_list,next_first_speaker):
+    def generate_convergence_prompt(self,planner_output,episode,history,name,name_list,next_first_speaker,error,pattern):
 
         next_episode_guide=f"下一集的开场角色已确定为{next_first_speaker}:你必须指导演员将矛盾或注意力引向此人,为下一集铺垫!" if next_first_speaker else "这是全剧最后一集,你必须引导走向终极结局!"
             
@@ -244,6 +266,13 @@ class Director_Agent_Prompt():
             chara_text+=f"-[基础信息]:{info['gender']},{info['age']}岁,{info['identity']}\n"
             chara_text+=f"-[性格]:{personality}\n"
         
+        # ----- 确定所有合法角色名 -----
+        valid_names=list(self.global_config["character_roster"].keys())
+
+        # ----- 处理总监制Agent(模式2)输出错误 -----
+        error_prompt=""
+        error_prompt=self.director_agent_error.generate_error_prompt(pattern,error,valid_names)
+
         prompt=textwrap.dedent(f"""
                                 # Role:
                                 你是一位微短剧总监制,当前这集即将强制结束,你必须立刻下达"收网"指令!
@@ -280,12 +309,14 @@ class Director_Agent_Prompt():
                                 # Action_Type 说明:
                                 - Current :顺序没问题,但需要指导即将上场的{name}怎么演才能更劲爆。
                                 - Override :强行换人,打断当前排队互动的演员,强行切镜头给你指定的 Target_Role ,让他立刻出来扭转局面
+                                
+                                {error_prompt}
                                 """).strip()
         
-        return prompt
+        return self.normalize_prompt(prompt)
     
     # ---------- 总监制Agent杀青审核模式 ----------
-    def generate_audit_prompt(self, planner_output, episode, history, next_first_speaker):
+    def generate_audit_prompt(self, planner_output, episode, history, next_first_speaker,error,pattern):
 
         chara_text=""
         for chara_name,info in self.global_config["character_roster"].items():
@@ -294,7 +325,12 @@ class Director_Agent_Prompt():
             chara_text+=f"-[基础信息]:{info['gender']},{info['age']}岁,{info['identity']}\n"
             chara_text+=f"-[性格]:{personality}\n"
 
-        
+        # ----- 确定所有合法角色名 -----
+        valid_names=list(self.global_config["character_roster"].keys())
+
+        # ----- 处理总监制Agent(模式3)输出错误 -----
+        error_prompt=""
+        error_prompt=self.director_agent_error.generate_error_prompt(pattern,error,valid_names)
 
         prompt=textwrap.dedent(f"""
                                 # Role:
@@ -325,8 +361,10 @@ class Director_Agent_Prompt():
                                 严格按照以下JSON格式输出:
                                 {{"Analysis": "(分析悬念是否到位、情绪是否饱满、衔接是否生硬)",
                                   "Approved":"(决定当前互动历史的质量是否满足杀青条件,如果同意填'true',拒绝填'false')",
-                                  "Rejected_Feedback": {{"Target_Role":"(如果拒绝杀青,指出由哪个角色来补救:你可以从 Characters 中提供的角色中进行选择)",
-                                                         "Directive":"(如果拒绝杀青,给出极其具体的补救指令;如果 Approved 为 true ,此项及内部字段填'null')"}}}}
+                                  "Rejected_Feedback": {{"Target_Role":"(如果 Approved 为 false ,指出由哪个角色来补救:你必须从 Characters 中提供的角色中进行选择一个;如果 Approved 为 true ,此字段填'null')",
+                                                         "Directive":"(如果 Approved 为 false ,给出极其具体的补救指令;如果 Approved 为 true ,此字段填'null')"}}}}
+                                
+                                {error_prompt}
                                 """).strip()
         
-        return prompt
+        return self.normalize_prompt(prompt)
