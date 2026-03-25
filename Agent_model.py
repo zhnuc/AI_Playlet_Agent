@@ -144,9 +144,18 @@ class Planner_Agent:
                 f"[PERF][MODEL][planner] ms={elapsed_ms} prompt_chars={len(prompt)} "
                 f"response_chars={len(raw_text or '')} usage={usage_payload}"
             )
-            return parse_json_response(raw_text)
+            parsed = parse_json_response(raw_text)
+            episodes = parsed.get("episodes") if isinstance(parsed, dict) else None
+            episode_count = len(episodes) if isinstance(episodes, list) else 0
+            print(
+                f"[DEBUG][PLANNER][parsed] type={type(parsed).__name__} "
+                f"has_episodes={isinstance(episodes, list)} episode_count={episode_count}"
+            )
+            return parsed
         except (json.JSONDecodeError, ValueError) as exc:
+            preview = (raw_text[:500] if "raw_text" in locals() and raw_text else "EMPTY")
             print(f"总策划Agent输出格式不正确:{exc}")
+            print(f"[DEBUG][PLANNER][raw_preview]={preview}")
             return "format_error"
         except Exception as exc:
             print(f"总策划Agent调用Api失败:{exc}")

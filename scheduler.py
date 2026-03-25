@@ -1,12 +1,13 @@
 """该文件实现短剧多角色调度规则。"""
 
 END_SIGNAL = "end"
+END_REQUEST_SIGNAL = "end_request"
 
 
 def normalize_candidate_name(candidate: str | None) -> str:
     """标准化单个候选说话人。"""
     normalized = (candidate or "").strip()
-    if normalized.lower() == END_SIGNAL:
+    if normalized.lower() in {END_SIGNAL, END_REQUEST_SIGNAL}:
         return END_SIGNAL
     return normalized
 

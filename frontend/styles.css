@@ -48,6 +48,10 @@ button {
   cursor: pointer;
 }
 
+.hidden {
+  display: none !important;
+}
+
 textarea,
 input[type="text"],
 select {

@@ -85,6 +85,15 @@ def generate_outline(session_id: str):
     planner_agent, _, _ = _build_agents()
     try:
         result = service.generate_outline(session_id, planner_agent)
+        if not isinstance(result, dict):
+            print(f"[DEBUG][API][outline_generate] session={session_id} failed={result}")
+            raise HTTPException(status_code=400, detail=f"大纲生成失败: {result}")
+        episodes = result.get("episodes")
+        episode_count = len(episodes) if isinstance(episodes, list) else 0
+        print(
+            f"[DEBUG][API][outline_generate] session={session_id} ok "
+            f"has_episodes={isinstance(episodes, list)} episode_count={episode_count}"
+        )
         return {"planner_output": result}
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

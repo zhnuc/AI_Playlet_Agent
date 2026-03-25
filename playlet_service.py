@@ -97,6 +97,15 @@ class PlayletService:
         session = self.get_session(session_id)
         planner_output = generate_planner_outline(planner_agent, session.runtime_config)
         if isinstance(planner_output, dict):
+            episodes = planner_output.get("episodes")
+            episode_count = len(episodes) if isinstance(episodes, list) else 0
+            print(
+                f"[DEBUG][OUTLINE][session={session_id}] type=dict "
+                f"has_episodes={isinstance(episodes, list)} episode_count={episode_count}"
+            )
+        else:
+            print(f"[DEBUG][OUTLINE][session={session_id}] type=str value={planner_output}")
+        if isinstance(planner_output, dict):
             session.planner_review_state.planner_output = planner_output
             session.planner_review_state.approved = False
         return planner_output

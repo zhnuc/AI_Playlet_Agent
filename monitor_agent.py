@@ -1,4 +1,4 @@
-"""监制 / 监控层。"""
+"""Monitor layer for runtime supervision."""
 from __future__ import annotations
 
 import json
@@ -13,7 +13,7 @@ from story_state import RuntimeState
 
 @dataclass
 class MonitorDecision:
-    """监制决策结果。"""
+    """Result returned by monitor review."""
 
     decision: str = "continue"
     suggestion: str = ""
@@ -21,28 +21,14 @@ class MonitorDecision:
 
 
 class RuleBasedMonitor:
-    """最小规则版监制，不依赖模型即可运行。"""
+    """Minimal rule monitor that does not rely on extra model calls."""
 
     def review(self, runtime_state: RuntimeState, episode_plan: dict[str, Any]) -> MonitorDecision:
-        current_turn = runtime_state.story.current_turn
-        if current_turn >= 12:
-            return MonitorDecision(decision="cut", reason="达到默认最大监制轮次")
-
-        dialogue_events = [event for event in runtime_state.story.event_log if event.kind == "dialogue"]
-        if len(dialogue_events) >= 4:
-            last_two_dialogues = [event.content for event in dialogue_events[-2:]]
-            if len(set(last_two_dialogues)) == 1:
-                return MonitorDecision(
-                    decision="suggestion",
-                    suggestion="避免重复原话，立刻推进新的事实、证据或反击动作。",
-                    reason="检测到对白重复",
-                )
-
-        return MonitorDecision(decision="continue", reason="当前节奏正常")
+        return MonitorDecision(decision="continue", reason="Rule monitor disabled")
 
 
 class Monitor_Agent:
-    """可选 LLM 监制。"""
+    """Optional LLM monitor."""
 
     def __init__(self, base_url: str, api_key: str, model: str):
         self.model = model
@@ -60,22 +46,22 @@ class Monitor_Agent:
         ]
         return f"""
 # Role:
-你是短剧推演过程中的监制 Agent，负责判断当前场景是否应该继续、切断，或向演员发出节奏建议。
+You are the monitor agent in a short-drama runtime. Judge whether the scene should continue, cut, or receive a pacing suggestion.
 
 # Scene Goal:
-- 本集主线：{episode_plan["global_plot"]}
-- 核心冲突：{episode_plan["core_conflict"]}
-- 悬念目标：{episode_plan["plot_twist_or_hook"]}
+- Main plot: {episode_plan["global_plot"]}
+- Core conflict: {episode_plan["core_conflict"]}
+- Hook target: {episode_plan["plot_twist_or_hook"]}
 
 # Recent Events:
 {json.dumps(recent_events, ensure_ascii=False, indent=2)}
 
 # Output:
-你必须输出严格 JSON：
+Return strict JSON only:
 {{
   "decision": "continue | cut | suggestion",
-  "suggestion": "若 decision 为 suggestion，则给出一条简短、可执行的指导",
-  "reason": "说明原因"
+  "suggestion": "If decision is suggestion, provide one short actionable instruction",
+  "reason": "Reason"
 }}
 """
 

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import copy
+import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from time import perf_counter
@@ -58,6 +60,56 @@ VALID_DIRECTOR_COMMANDS = {
     "resume",
     "cut",
 }
+DEBUG_ROLE_IO_ENABLED = os.getenv("DEBUG_ROLE_IO_ENABLED", "1").strip().lower() not in {"0", "false", "off"}
+DEBUG_ROLE_IO_FULL = os.getenv("DEBUG_ROLE_IO_FULL", "0").strip().lower() in {"1", "true", "on"}
+DEBUG_ROLE_IO_PREVIEW_CHARS = max(200, int(os.getenv("DEBUG_ROLE_IO_PREVIEW_CHARS", "1200")))
+
+
+def _preview_text(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    return f"{text[: max(limit - 3, 0)]}..."
+
+
+def _trim_turn_output_for_debug(turn_output: dict[str, Any], limit: int) -> dict[str, Any]:
+    trimmed: dict[str, Any] = {}
+    for key in ("Inner_Thought", "Action", "Dialogue"):
+        value = turn_output.get(key, "")
+        trimmed[key] = _preview_text(str(value), limit)
+    trimmed["next_speaker"] = turn_output.get("next_speaker")
+    trimmed["next_speakers"] = list(turn_output.get("next_speakers", []))
+    if isinstance(turn_output.get("__meta"), dict):
+        trimmed["__meta"] = dict(turn_output["__meta"])
+    return trimmed
+
+
+def log_role_io(
+    speaker: str,
+    status: str,
+    prompt: str,
+    turn_output: dict[str, Any] | None,
+    perf_payload: dict[str, Any],
+) -> None:
+    if not DEBUG_ROLE_IO_ENABLED:
+        return
+
+    print(
+        f"[DEBUG][ROLE_IO][speaker={speaker}] status={status} "
+        f"prompt_chars={len(prompt)} attempts={perf_payload.get('attempt_count', 0)}"
+    )
+    prompt_body = prompt if DEBUG_ROLE_IO_FULL else _preview_text(prompt, DEBUG_ROLE_IO_PREVIEW_CHARS)
+    print(f"[DEBUG][ROLE_IO][speaker={speaker}][prompt]\n{prompt_body}")
+    if isinstance(turn_output, dict):
+        output_payload = turn_output if DEBUG_ROLE_IO_FULL else _trim_turn_output_for_debug(
+            turn_output,
+            DEBUG_ROLE_IO_PREVIEW_CHARS // 3,
+        )
+        print(
+            f"[DEBUG][ROLE_IO][speaker={speaker}][output]\n"
+            f"{json.dumps(output_payload, ensure_ascii=False, indent=2)}"
+        )
+    else:
+        print(f"[DEBUG][ROLE_IO][speaker={speaker}][output] null")
 
 
 def derive_turn_limits(max_turns: int) -> tuple[int, int | None]:
@@ -584,6 +636,13 @@ class EpisodeSession:
         }
         if status in {"api_error", "format_error", "key_error"}:
             perf_payload["step_elapsed_ms"] = round((perf_counter() - turn_started_at) * 1000, 1)
+            log_role_io(
+                self.current_speaker,
+                status=status,
+                prompt=prompt,
+                turn_output=turn_result.get("turn_output") if isinstance(turn_result.get("turn_output"), dict) else None,
+                perf_payload=perf_payload,
+            )
             print(
                 f"[PERF][STEP][speaker={self.current_speaker}] status={status} "
                 f"step_ms={perf_payload['step_elapsed_ms']} model_ms={perf_payload['model_elapsed_ms_total']} "
@@ -594,6 +653,13 @@ class EpisodeSession:
         turn_output = turn_result["turn_output"]
         if not isinstance(turn_output, dict):
             return self.finalize("api_error", self.current_speaker)
+        log_role_io(
+            self.current_speaker,
+            status=status,
+            prompt=prompt,
+            turn_output=turn_output,
+            perf_payload=perf_payload,
+        )
 
         proposed_next_speakers = list(turn_output.get("next_speakers", []))
 

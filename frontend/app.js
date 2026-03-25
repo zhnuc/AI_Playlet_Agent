@@ -82,10 +82,9 @@ const dom = {
   customTagInput: document.querySelector("#customTagInput"),
   episodeCount: document.querySelector("#episodeCount"),
   episodeCountValue: document.querySelector("#episodeCountValue"),
-  roundLimit: document.querySelector("#roundLimit"),
-  roundValue: document.querySelector("#roundValue"),
   timelineSlider: document.querySelector("#timelineSlider"),
   timelineValue: document.querySelector("#timelineValue"),
+  nextEpisodeBtn: document.querySelector("#nextEpisodeBtn"),
   outlineFeedback: document.querySelector("#outlineFeedback"),
   directorCommand: document.querySelector("#directorCommand"),
   targetRole: document.querySelector("#targetRole"),
@@ -108,7 +107,6 @@ function initializeDefaults() {
   dom.promptPreview.textContent = promptMap[state.selectedGenre];
   dom.scriptOutput.textContent = "还没有导出结果。先生成大纲并跑完一轮推演。";
   updateEpisodeCountDisplay();
-  updateRoundDisplay();
   syncRoleOptions(Object.keys(roleDefaults));
   renderAllChips();
   renderOutline();
@@ -397,6 +395,25 @@ function renderMonitorFeed() {
   });
 }
 
+function getCurrentEpisodeNumber(snapshot) {
+  if (!snapshot) return 1;
+  const fromPlan = Number(snapshot?.episode_plan?.episode_number);
+  if (Number.isInteger(fromPlan) && fromPlan > 0) return fromPlan;
+  const fromResult = Number(snapshot?.result?.runtime_state?.story?.current_episode);
+  if (Number.isInteger(fromResult) && fromResult > 0) return fromResult;
+  return 1;
+}
+
+function updateNextEpisodeButton() {
+  if (!dom.nextEpisodeBtn) return;
+  const episodes = state.plannerOutput?.episodes || [];
+  const totalEpisodes = Array.isArray(episodes) ? episodes.length : 0;
+  const currentEpisode = getCurrentEpisodeNumber(state.snapshot);
+  const canStartNext = Boolean(state.snapshot?.result) && currentEpisode < totalEpisodes;
+  dom.nextEpisodeBtn.classList.toggle("hidden", !canStartNext);
+  dom.nextEpisodeBtn.disabled = !canStartNext;
+}
+
 function applySnapshot(snapshot) {
   state.snapshot = snapshot || null;
   if (snapshot?.planner_output) {
@@ -423,6 +440,7 @@ function applySnapshot(snapshot) {
   renderOutline();
   renderMessages();
   renderMonitorFeed();
+  updateNextEpisodeButton();
 }
 
 function resetSessionState() {
@@ -440,6 +458,7 @@ function resetSessionState() {
   renderOutline();
   renderMessages();
   renderMonitorFeed();
+  updateNextEpisodeButton();
   dom.timelineSlider.max = "0";
   dom.timelineSlider.value = "0";
   updateTimelineDisplay();
@@ -501,6 +520,15 @@ async function generateOutline() {
   const payload = await request(`/sessions/${sessionId}/outline/generate`, {
     method: "POST"
   });
+  const episodes = payload?.planner_output?.episodes;
+  if (!Array.isArray(episodes) || episodes.length === 0) {
+    state.plannerOutput = null;
+    state.outlineApproved = false;
+    renderOutline();
+    setStatus("大纲生成失败");
+    setApiPreview("outline 生成失败", payload);
+    return;
+  }
   state.plannerOutput = payload.planner_output;
   state.outlineApproved = false;
   renderOutline();
@@ -566,8 +594,7 @@ async function startEpisode() {
   const payload = await request(`/sessions/${state.sessionId}/episode/start`, {
     method: "POST",
     body: {
-      episode: 1,
-      max_turns: Number(dom.roundLimit.value)
+      episode: 1
     }
   });
 
@@ -657,6 +684,31 @@ async function continueScene() {
   } catch (error) {
     setStatus("继续失败");
     setApiPreview("继续推演失败。", { error: error.message });
+  }
+}
+
+async function startNextEpisode() {
+  try {
+    if (!state.sessionId || !state.snapshot || !state.plannerOutput?.episodes?.length) {
+      setStatus("先完成当前集初始化");
+      return;
+    }
+    const currentEpisode = getCurrentEpisodeNumber(state.snapshot);
+    const nextEpisode = currentEpisode + 1;
+    if (nextEpisode > state.plannerOutput.episodes.length) {
+      setStatus("已是最后一集");
+      return;
+    }
+
+    const payload = await request(`/sessions/${state.sessionId}/episode/start`, {
+      method: "POST",
+      body: { episode: nextEpisode }
+    });
+    applySnapshot(payload);
+    setStatus(`已开始第 ${nextEpisode} 集`);
+    setApiPreview("已切换到下一集", payload);
+  } catch (error) {
+    setApiPreview("启动下一集失败。", { error: error.message });
   }
 }
 
@@ -769,7 +821,6 @@ dom.randomizeAll = document.querySelector("#randomizeAll");
 document.querySelector("#randomizeAll").addEventListener("click", randomizeAll);
 document.querySelector("#optimizeInput").addEventListener("click", optimizeInput);
 document.querySelector("#episodeCount").addEventListener("input", updateEpisodeCountDisplay);
-document.querySelector("#roundLimit").addEventListener("input", updateRoundDisplay);
 document.querySelector("#timelineSlider").addEventListener("input", updateTimelineDisplay);
 document.querySelector("#generateOutlineBtn").addEventListener("click", () => generateOutline().catch((error) => setApiPreview("生成大纲失败。", { error: error.message })));
 document.querySelector("#reviewOutlineBtn").addEventListener("click", () => reviewOutline().catch((error) => setApiPreview("审稿失败。", { error: error.message })));
@@ -783,6 +834,7 @@ document.querySelector("#buildFreePlanBtn").addEventListener("click", () => {
 });
 document.querySelector("#startDemo").addEventListener("click", quickStart);
 document.querySelector("#continueScene").addEventListener("click", continueScene);
+document.querySelector("#nextEpisodeBtn").addEventListener("click", startNextEpisode);
 document.querySelector("#cutScene").addEventListener("click", cutScene);
 document.querySelector("#sendDirective").addEventListener("click", sendDirective);
 document.querySelector("#rollbackBtn").addEventListener("click", rollbackScene);

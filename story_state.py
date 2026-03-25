@@ -34,6 +34,9 @@ class RoleMemory:
     private_history: list[str] = field(default_factory=list)
     private_summary: str = ""
     summary_until_event_id: str | None = None
+    episode_digest_public: str = ""
+    episode_digest_private: str = ""
+    episode_digest_until_event_id: str | None = None
     carryover_summary: str = ""
     carryover_event_tail: list[dict[str, Any]] = field(default_factory=list)
     current_goal: str = ""
