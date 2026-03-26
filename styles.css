@@ -131,13 +131,6 @@ select:focus {
   margin-top: 0.2rem;
 }
 
-.hero-text {
-  max-width: 60ch;
-  color: var(--muted);
-  line-height: 1.7;
-  margin: 1rem 0 1.5rem;
-}
-
 .hero-actions,
 .action-row,
 .toolbar-actions {
@@ -145,6 +138,10 @@ select:focus {
   gap: 12px;
   flex-wrap: wrap;
   align-items: center;
+}
+
+.hero-actions {
+  margin-top: 10px;
 }
 
 .hero-metrics {
@@ -231,6 +228,7 @@ select:focus {
   align-self: stretch;
   overflow: hidden;
   grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
 }
 
 .sandbox-panel {
@@ -403,6 +401,35 @@ select:focus {
   border-radius: var(--radius-lg);
   background: rgba(255, 249, 240, 0.74);
   border: 1px solid rgba(111, 82, 56, 0.1);
+  position: relative;
+  z-index: 2;
+}
+
+.role-composer-entry,
+.role-composer-display {
+  display: grid;
+  gap: 10px;
+  position: relative;
+  z-index: 3;
+}
+
+#openRoleDesignerBtn {
+  position: relative;
+  z-index: 4;
+  pointer-events: auto;
+}
+
+.role-entry-hint {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.role-composer-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
 }
 
 .role-composer-head {
@@ -414,11 +441,14 @@ select:focus {
 
 .role-composer-title {
   display: block;
-  color: var(--muted);
-  margin-bottom: 6px;
+  color: var(--text);
+  margin-bottom: 2px;
+  font-family: "Noto Serif SC", serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
-#roleSummary,
 #roleDesignerStats {
   margin: 0;
   color: var(--muted);
@@ -440,11 +470,70 @@ select:focus {
   background: rgba(255, 255, 255, 0.62);
 }
 
+.role-summary-preview,
+.role-template-hint,
+.role-position-note {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.role-summary-preview {
+  font-size: 0.94rem;
+}
+
+.role-template-hint,
+.role-position-note {
+  font-size: 0.85rem;
+}
+
+.main-role-empty {
+  grid-column: 1 / -1;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px dashed rgba(111, 82, 56, 0.18);
+  color: var(--muted);
+}
+
 .role-card-head {
   display: flex;
-  align-items: start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.role-card-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.role-card-title-block {
+  min-width: 0;
+  flex: 1;
+}
+
+.role-card-name {
+  font-size: 2rem;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.role-position-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.36rem 0.72rem;
+  border-radius: 999px;
+  background: rgba(31, 95, 132, 0.1);
+  color: var(--secondary);
+  font-size: 0.82rem;
+  white-space: nowrap;
 }
 
 .role-card-head h3,
@@ -469,13 +558,6 @@ select:focus {
   color: var(--accent-deep);
   font-size: 0.78rem;
   white-space: nowrap;
-}
-
-.role-card-hint {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.84rem;
-  line-height: 1.5;
 }
 
 .modal-shell {
@@ -561,6 +643,10 @@ select:focus {
 
 .danger-btn:hover {
   transform: translateY(-2px);
+}
+
+select option:disabled {
+  color: #a79a8d;
 }
 
 body.modal-open {
@@ -910,6 +996,10 @@ input[type="range"] {
   .output-layout {
     grid-template-columns: 1fr;
   }
+
+  .role-card-name {
+    font-size: 1.6rem;
+  }
 }
 
 @media (max-width: 720px) {
@@ -928,7 +1018,13 @@ input[type="range"] {
     grid-template-columns: 1fr;
   }
 
+  .role-card-name {
+    font-size: 1.32rem;
+    white-space: normal;
+  }
+
   .role-composer-head,
+  .role-composer-entry,
   .modal-head,
   .role-designer-toolbar,
   .panel-heading,

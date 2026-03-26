@@ -15,9 +15,6 @@
       <div class="hero-copy">
         <p class="eyebrow">AI Playlet Agent</p>
         <h1>短剧创作指挥台</h1>
-        <p class="hero-text">
-          这一版已经不只是视觉稿。它会直接连接当前 FastAPI 服务，支持创建创作 session、生成并审阅大纲、逐轮推进角色演绎、注入导演指令，以及导出台本与 shotlist。
-        </p>
         <div class="hero-actions">
           <button class="ghost-btn" id="resetSessionBtn" type="button">重置会话</button>
         </div>
@@ -86,14 +83,19 @@
             <input id="sceneInput" type="text" placeholder="例如：总裁办公室 / 夜 / 内">
           </label>
           <section class="role-composer">
-            <div class="role-composer-head">
-              <div>
-                <label class="role-composer-title">核心角色卡</label>
-                <p id="roleSummary">当前展示女主、男主、反派三张角色卡。你可以在角色设计器里继续扩展主角和配角数量。</p>
-              </div>
+            <div class="role-composer-entry">
               <button class="ghost-btn small" id="openRoleDesignerBtn" type="button">打开角色设计器</button>
+              <p class="role-entry-hint" id="roleEntryHint">先在设计器里确认角色，系统会按重要性自动挑选最多 3 位核心角色展示。</p>
             </div>
-            <div class="main-role-grid" id="mainRoleCards"></div>
+            <div class="role-composer-display hidden" id="roleComposerDisplay">
+              <div class="role-composer-head">
+                <div>
+                  <label class="role-composer-title">核心角色卡</label>
+                </div>
+              </div>
+              <div class="main-role-grid" id="mainRoleCards"></div>
+              <p class="role-composer-hint">核心角色展示由角色定位自动决定，完整编辑请在“角色设计器”中进行。</p>
+            </div>
           </section>
           <label>
             创作附加标签
@@ -294,7 +296,7 @@
 
       <div class="role-designer-toolbar">
         <label>
-          配角模板
+          角色模板
           <select id="rolePresetSelect"></select>
         </label>
         <div class="action-row">
