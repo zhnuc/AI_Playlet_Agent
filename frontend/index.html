@@ -19,8 +19,6 @@
           这一版已经不只是视觉稿。它会直接连接当前 FastAPI 服务，支持创建创作 session、生成并审阅大纲、逐轮推进角色演绎、注入导演指令，以及导出台本与 shotlist。
         </p>
         <div class="hero-actions">
-          <button class="primary-btn" id="startDemo" type="button">开始一轮推演</button>
-          <button class="ghost-btn" id="generateOutlineBtn" type="button">生成大纲</button>
           <button class="ghost-btn" id="resetSessionBtn" type="button">重置会话</button>
         </div>
       </div>
@@ -41,50 +39,16 @@
     </header>
 
     <main class="workspace-grid">
-      <section class="panel sandbox-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="panel-kicker">阶段 2</p>
-            <h2>群聊式推演沙盒</h2>
-          </div>
-          <div class="live-state">
-            <span class="live-dot"></span>
-            <span id="streamStatus">等待创建 session</span>
-          </div>
-        </div>
-
-        <div class="sandbox-layout">
-          <aside class="outline-tree">
-            <div class="tree-head">
-              <div>
-                <h3>剧本结构树</h3>
-                <p id="outlineStatus">还没有可用大纲</p>
-              </div>
-              <button class="ghost-btn small" id="approveOutlineBtn" type="button">审核通过</button>
-            </div>
-            <ul id="outlineTree"></ul>
-          </aside>
-
-          <div class="chat-stage">
-            <div class="chat-toolbar">
-              <span>角色演绎区</span>
-              <div class="toolbar-actions">
-                <span id="turnBadge">第 0 句</span>
-                <button class="ghost-btn small" id="refreshStageBtn" type="button">刷新快照</button>
-              </div>
-            </div>
-            <div class="chat-feed" id="chatFeed"></div>
-          </div>
-        </div>
-      </section>
-
       <section class="panel inspiration-panel">
         <div class="panel-heading">
           <div>
             <p class="panel-kicker">阶段 1</p>
             <h2>灵感输入与模式设定</h2>
           </div>
-          <button class="icon-btn" id="randomizeAll" type="button" aria-label="随机刷新灵感">✦</button>
+          <div class="panel-heading-actions">
+            <button class="ghost-btn small" id="generateOutlineBtn" type="button">生成大纲</button>
+            <button class="icon-btn" id="randomizeAll" type="button" aria-label="随机刷新灵感">✦</button>
+          </div>
         </div>
 
         <div class="slot-machine">
@@ -158,23 +122,80 @@
         </div>
       </section>
 
+      <section class="panel outline-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">阶段 2-A</p>
+            <h2>剧本结构树</h2>
+          </div>
+        </div>
+
+        <aside class="outline-tree">
+          <div class="tree-head">
+            <div>
+              <h3>剧本结构树</h3>
+              <p id="outlineStatus">还没有可用大纲</p>
+            </div>
+            <div class="tree-actions">
+              <button class="ghost-btn small" id="approveOutlineBtn" type="button">审核通过</button>
+              <button class="primary-btn small" id="startDemo" type="button">开始一轮推演</button>
+            </div>
+          </div>
+          <ul id="outlineTree"></ul>
+        </aside>
+
+        <div class="outline-side-controls">
+          <div class="control-group">
+            <label for="roundLimit">演绎轮数目标（软）</label>
+            <input id="roundLimit" type="range" min="3" max="12" value="6">
+            <div class="range-meta">
+              <span>3 轮目标</span>
+              <strong id="roundValue">6 轮目标</strong>
+              <span>12 轮目标</span>
+            </div>
+            <small id="roundHint">说明：这是节奏目标，不是强制截断。收束由剧情完成度与 end/cut 决定。</small>
+          </div>
+
+          <label class="director-box">
+            大纲审稿意见
+            <textarea id="outlineFeedback" rows="4" placeholder="例如：第 1 集不要先铺陈关系，直接公开打脸；第 2 集提前抛出录音笔。"></textarea>
+          </label>
+
+          <div class="action-row">
+            <button class="ghost-btn" id="reviewOutlineBtn" type="button">提交审稿意见</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel sandbox-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">阶段 2-B</p>
+            <h2>群聊式推演沙盒</h2>
+          </div>
+          <div class="live-state">
+            <span class="live-dot"></span>
+            <span id="streamStatus">等待创建 session</span>
+          </div>
+        </div>
+        <div class="chat-stage">
+          <div class="chat-toolbar">
+            <span>角色演绎区</span>
+            <div class="toolbar-actions">
+              <span id="turnBadge">第 0 句</span>
+              <button class="ghost-btn small" id="refreshStageBtn" type="button">刷新快照</button>
+            </div>
+          </div>
+          <div class="chat-feed" id="chatFeed"></div>
+        </div>
+      </section>
+
       <section class="panel control-panel">
         <div class="panel-heading">
           <div>
             <p class="panel-kicker">阶段 3</p>
             <h2>导演与监制控制</h2>
           </div>
-        </div>
-
-        <div class="control-group">
-          <label for="roundLimit">演绎轮数目标（软）</label>
-          <input id="roundLimit" type="range" min="3" max="12" value="6">
-          <div class="range-meta">
-            <span>3 轮目标</span>
-            <strong id="roundValue">6 轮目标</strong>
-            <span>12 轮目标</span>
-          </div>
-          <small id="roundHint">说明：这是节奏目标，不是强制截断。收束由剧情完成度与 end/cut 决定。</small>
         </div>
 
         <div class="control-group">
@@ -193,13 +214,7 @@
           <button class="ghost-btn hidden" id="nextEpisodeBtn" type="button">开始下一集</button>
         </div>
 
-        <label class="director-box">
-          大纲审稿意见
-          <textarea id="outlineFeedback" rows="4" placeholder="例如：第 1 集不要先铺陈关系，直接公开打脸；第 2 集提前抛出录音笔。"></textarea>
-        </label>
-
-        <div class="action-row stack">
-          <button class="ghost-btn" id="reviewOutlineBtn" type="button">提交审稿意见</button>
+        <div class="action-row">
           <button class="ghost-btn" id="buildFreePlanBtn" type="button">生成最小开场</button>
         </div>
 
@@ -218,6 +233,15 @@
           <button class="ghost-btn" id="rollbackBtn" type="button">执行回档</button>
         </div>
 
+      </section>
+
+      <section class="panel monitor-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">阶段 3-B</p>
+            <h2>监控监制</h2>
+          </div>
+        </div>
         <div class="monitor-card">
           <p class="prompt-title">监制 Agent 观察</p>
           <ul id="monitorFeed"></ul>

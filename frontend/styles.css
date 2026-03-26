@@ -196,7 +196,7 @@ select:focus {
 
 .workspace-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 18px;
   margin-top: 18px;
 }
@@ -207,7 +207,9 @@ select:focus {
 }
 
 .inspiration-panel,
-.control-panel {
+.outline-panel,
+.control-panel,
+.monitor-panel {
   display: grid;
   align-content: start;
   gap: 18px;
@@ -219,9 +221,39 @@ select:focus {
   gap: 18px;
 }
 
-.sandbox-panel,
+.inspiration-panel {
+  grid-column: 1 / 4;
+  align-self: stretch;
+}
+
+.outline-panel {
+  grid-column: 4 / 7;
+  align-self: stretch;
+  overflow: hidden;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.sandbox-panel {
+  grid-column: 1 / 5;
+  align-content: start;
+  align-self: stretch;
+}
+
+.control-panel {
+  grid-column: 5 / 7;
+  align-content: start;
+  align-self: stretch;
+  gap: 12px;
+  padding-top: 18px;
+  padding-bottom: 18px;
+}
+
 .output-panel {
-  grid-column: 1 / -1;
+  grid-column: 1 / 7;
+}
+
+.monitor-panel {
+  grid-column: 1 / 7;
 }
 
 .panel-heading {
@@ -231,8 +263,30 @@ select:focus {
   gap: 16px;
 }
 
+.panel-heading-actions,
+.tree-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tree-actions {
+  margin-right: 10px;
+}
+
 .panel-heading h2 {
   font-size: 1.7rem;
+}
+
+.panel-heading-actions,
+.tree-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tree-actions {
+  margin-right: 10px;
 }
 
 .primary-btn,
@@ -358,11 +412,30 @@ select:focus {
   padding: 18px;
 }
 
-.sandbox-layout {
+.outline-panel .outline-tree {
   display: grid;
-  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
-  gap: 16px;
-  min-height: 560px;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.outline-side-controls {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.outline-side-controls .director-box {
+  gap: 6px;
+}
+
+.outline-side-controls .director-box textarea {
+  min-height: 92px;
+}
+
+.outline-side-controls .action-row {
+  justify-content: flex-start;
 }
 
 .tree-head {
@@ -387,6 +460,13 @@ select:focus {
   gap: 12px;
 }
 
+.outline-tree ul {
+  overflow: auto;
+  min-height: 0;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
+}
+
 .outline-tree li {
   padding: 12px 14px;
   background: rgba(255, 255, 255, 0.56);
@@ -404,10 +484,10 @@ select:focus {
 
 .chat-stage {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto;
   min-height: 0;
   min-width: 0;
-  height: 100%;
+  height: auto;
   overflow: hidden;
 }
 
@@ -421,10 +501,10 @@ select:focus {
 .chat-feed {
   display: grid;
   align-content: start;
-  gap: 12px;
+  gap: 8px;
   overflow: auto;
   min-height: 0;
-  max-height: 560px;
+  max-height: 540px;
   padding-right: 8px;
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
@@ -449,8 +529,8 @@ select:focus {
 
 .chat-message {
   display: grid;
-  gap: 8px;
-  padding: 16px 18px;
+  gap: 6px;
+  padding: 12px 14px;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid rgba(111, 82, 56, 0.1);
@@ -485,8 +565,34 @@ select:focus {
 }
 
 .message-body {
-  line-height: 1.7;
-  font-size: 1.02rem;
+  line-height: 1.55;
+  font-size: 0.96rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.message-body.compact {
+  display: grid;
+  gap: 4px;
+}
+
+.compound-line {
+  display: grid;
+  grid-template-columns: 136px 1fr;
+  gap: 8px;
+  align-items: start;
+}
+
+.compound-label {
+  color: var(--muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding-right: 6px;
+}
+
+.compound-text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -521,6 +627,23 @@ input[type="range"] {
 
 .stack {
   flex-direction: column;
+}
+
+.control-panel .control-group,
+.control-panel .director-box {
+  gap: 6px;
+}
+
+.control-panel .action-row {
+  gap: 8px;
+}
+
+.control-panel .director-box textarea {
+  min-height: 88px;
+}
+
+.control-panel .monitor-card {
+  padding: 14px;
 }
 
 .monitor-card li {
@@ -594,8 +717,16 @@ input[type="range"] {
     grid-template-columns: 1fr;
   }
 
+  .inspiration-panel,
+  .outline-panel,
+  .sandbox-panel,
+  .control-panel,
+  .monitor-panel,
+  .output-panel {
+    grid-column: 1 / 2;
+  }
+
   .hero-card,
-  .sandbox-layout,
   .output-layout {
     grid-template-columns: 1fr;
   }

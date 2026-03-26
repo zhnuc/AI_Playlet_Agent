@@ -57,7 +57,8 @@ const state = {
   outlineApproved: false,
   snapshot: null,
   shouldContinue: false,
-  isLooping: false
+  isLooping: false,
+  initialInspirationHeight: null
 };
 
 const dom = {
@@ -70,6 +71,8 @@ const dom = {
   streamStatus: document.querySelector("#streamStatus"),
   outlineStatus: document.querySelector("#outlineStatus"),
   outlineTree: document.querySelector("#outlineTree"),
+  inspirationPanel: document.querySelector(".inspiration-panel"),
+  outlinePanel: document.querySelector(".outline-panel"),
   chatFeed: document.querySelector("#chatFeed"),
   monitorFeed: document.querySelector("#monitorFeed"),
   turnBadge: document.querySelector("#turnBadge"),
@@ -94,6 +97,34 @@ const dom = {
   messageTemplate: document.querySelector("#messageTemplate")
 };
 
+function syncTopPanelHeights() {
+  const inspirationPanel = dom.inspirationPanel;
+  const outlinePanel = dom.outlinePanel;
+  if (!inspirationPanel || !outlinePanel) return;
+
+  const fixedHeight = state.initialInspirationHeight;
+  const fallbackHeight = inspirationPanel.offsetHeight;
+  const targetHeight = fixedHeight && fixedHeight > 0 ? fixedHeight : fallbackHeight;
+  if (targetHeight > 0) {
+    outlinePanel.style.maxHeight = `${targetHeight}px`;
+  }
+}
+
+function captureInitialTopPanelHeight() {
+  if (state.initialInspirationHeight) return;
+  const inspirationPanel = dom.inspirationPanel;
+  if (!inspirationPanel) return;
+
+  requestAnimationFrame(() => {
+    if (state.initialInspirationHeight) return;
+    const initialHeight = inspirationPanel.offsetHeight;
+    if (initialHeight > 0) {
+      state.initialInspirationHeight = initialHeight;
+      syncTopPanelHeights();
+    }
+  });
+}
+
 function initializeDefaults() {
   dom.genreResult.textContent = state.selectedGenre;
   dom.runModeResult.textContent = "大纲驱动";
@@ -112,6 +143,8 @@ function initializeDefaults() {
   renderOutline();
   renderMessages();
   renderMonitorFeed();
+  captureInitialTopPanelHeight();
+  syncTopPanelHeights();
 }
 
 function renderChipGroup(field, values, selectedValue) {
@@ -311,11 +344,13 @@ function renderOutline() {
     `;
     dom.outlineTree.appendChild(li);
   });
+
+  syncTopPanelHeights();
 }
 
 function formatEventLabel(event) {
   const kindMap = {
-    thought: "Inner Thought",
+    thought: "Inner_Thought",
     action: "Action",
     dialogue: "Dialogue",
     monitor: "Monitor",
@@ -323,6 +358,59 @@ function formatEventLabel(event) {
     system: "System"
   };
   return `${event.speaker || "SYSTEM"} · ${kindMap[event.kind] || event.kind || "Event"}`;
+}
+
+function escapeHtml(text) {
+  return String(text ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function groupEventsForChat(events) {
+  const groups = [];
+  const tripleKinds = new Set(["thought", "action", "dialogue"]);
+  let i = 0;
+
+  while (i < events.length) {
+    const current = events[i];
+    const currentKind = current?.kind;
+    if (!tripleKinds.has(currentKind)) {
+      groups.push({ type: "single", event: current });
+      i += 1;
+      continue;
+    }
+
+    const speaker = current.speaker || "";
+    const step = current.step;
+    const lines = [];
+    let j = i;
+
+    while (j < events.length) {
+      const evt = events[j];
+      if (!evt || !tripleKinds.has(evt.kind)) break;
+      if ((evt.speaker || "") !== speaker) break;
+      if (evt.step !== step) break;
+      lines.push(evt);
+      j += 1;
+      if (lines.length >= 3) break;
+    }
+
+    if (lines.length > 1) {
+      groups.push({
+        type: "compound",
+        speaker,
+        step,
+        lines
+      });
+      i = j;
+    } else {
+      groups.push({ type: "single", event: current });
+      i += 1;
+    }
+  }
+
+  return groups;
 }
 
 function renderMessages() {
@@ -338,11 +426,40 @@ function renderMessages() {
     return;
   }
 
-  events.forEach((event) => {
+  const groups = groupEventsForChat(events);
+
+  groups.forEach((group) => {
     const node = dom.messageTemplate.content.firstElementChild.cloneNode(true);
-    node.classList.add(event.kind || "system");
-    node.querySelector(".message-role").textContent = formatEventLabel(event);
-    node.querySelector(".message-body").textContent = event.content || "";
+    const roleEl = node.querySelector(".message-role");
+    const bodyEl = node.querySelector(".message-body");
+
+    if (group.type === "compound") {
+      node.classList.add("dialogue");
+      roleEl.textContent = `${group.speaker || "SYSTEM"} · Turn ${group.step ?? "-"}`;
+      bodyEl.classList.add("compact");
+
+      const orderMap = { thought: 0, action: 1, dialogue: 2 };
+      const labelMap = {
+        thought: "Inner_Thought",
+        action: "Action",
+        dialogue: "Dialogue"
+      };
+      const sortedLines = [...group.lines].sort((a, b) => (orderMap[a.kind] ?? 99) - (orderMap[b.kind] ?? 99));
+      bodyEl.innerHTML = sortedLines
+        .map((line) => `
+          <div class="compound-line">
+            <span class="compound-label">${labelMap[line.kind] || line.kind}</span>
+            <span class="compound-text">${escapeHtml(line.content || "")}</span>
+          </div>
+        `)
+        .join("");
+    } else {
+      const event = group.event;
+      node.classList.add(event.kind || "system");
+      roleEl.textContent = formatEventLabel(event);
+      bodyEl.textContent = event.content || "";
+    }
+
     dom.chatFeed.appendChild(node);
   });
 
@@ -845,3 +962,5 @@ document.querySelector("#resetSessionBtn").addEventListener("click", resetSessio
 
 initializeDefaults();
 resetSessionState();
+window.addEventListener("resize", syncTopPanelHeights);
+window.addEventListener("load", captureInitialTopPanelHeight);
