@@ -85,18 +85,16 @@
             开场场景
             <input id="sceneInput" type="text" placeholder="例如：总裁办公室 / 夜 / 内">
           </label>
-          <label>
-            林若雪角色卡
-            <textarea id="heroineInput" rows="3" placeholder="真千金，毒舌冷静，拿回家族产业。"></textarea>
-          </label>
-          <label>
-            顾寒霆角色卡
-            <textarea id="leadInput" rows="3" placeholder="京圈太子爷，强控制欲，先稳场后表态。"></textarea>
-          </label>
-          <label>
-            林白莲角色卡
-            <textarea id="villainInput" rows="3" placeholder="假千金，擅长装无辜，用舆论和亲情绑架对手。"></textarea>
-          </label>
+          <section class="role-composer">
+            <div class="role-composer-head">
+              <div>
+                <label class="role-composer-title">核心角色卡</label>
+                <p id="roleSummary">当前展示女主、男主、反派三张角色卡。你可以在角色设计器里继续扩展主角和配角数量。</p>
+              </div>
+              <button class="ghost-btn small" id="openRoleDesignerBtn" type="button">打开角色设计器</button>
+            </div>
+            <div class="main-role-grid" id="mainRoleCards"></div>
+          </section>
           <label>
             创作附加标签
             <input id="customTagInput" type="text" placeholder="例如：直播翻车、录音笔、股权争夺、假结婚">
@@ -281,6 +279,33 @@
       <div class="message-body"></div>
     </article>
   </template>
+
+  <div class="modal-shell hidden" id="roleDesignerModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-role-modal="true"></div>
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="roleDesignerTitle">
+      <div class="modal-head">
+        <div>
+          <p class="panel-kicker">角色设计器</p>
+          <h2 id="roleDesignerTitle">自定义角色信息与数量</h2>
+          <p id="roleDesignerStats">你可以为主角和配角加载模板、修改名字与信息，并决定角色数量。</p>
+        </div>
+        <button class="icon-btn" id="closeRoleDesignerBtn" type="button" aria-label="关闭角色设计器">×</button>
+      </div>
+
+      <div class="role-designer-toolbar">
+        <label>
+          配角模板
+          <select id="rolePresetSelect"></select>
+        </label>
+        <div class="action-row">
+          <button class="ghost-btn small" id="addPresetRoleBtn" type="button">添加模板角色</button>
+          <button class="primary-btn small" id="addCustomRoleBtn" type="button">新增自定义角色</button>
+        </div>
+      </div>
+
+      <div class="role-designer-list" id="roleDesignerList"></div>
+    </section>
+  </div>
 
   <script src="./app.js"></script>
 </body>

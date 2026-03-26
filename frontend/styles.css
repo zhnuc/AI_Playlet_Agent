@@ -396,6 +396,177 @@ select:focus {
   gap: 14px;
 }
 
+.role-composer {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 249, 240, 0.74);
+  border: 1px solid rgba(111, 82, 56, 0.1);
+}
+
+.role-composer-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.role-composer-title {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+#roleSummary,
+#roleDesignerStats {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.main-role-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.role-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(111, 82, 56, 0.12);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.role-card-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.role-card-head h3,
+.role-editor-head h3,
+.modal-head h2 {
+  margin: 0;
+  font-family: "Noto Serif SC", serif;
+}
+
+.role-card-head p,
+.role-editor-head p,
+.modal-head p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.role-badge {
+  align-self: start;
+  padding: 0.38rem 0.72rem;
+  border-radius: 999px;
+  background: rgba(196, 82, 45, 0.12);
+  color: var(--accent-deep);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.role-card-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.modal-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(43, 29, 18, 0.36);
+  backdrop-filter: blur(6px);
+}
+
+.modal-card {
+  position: relative;
+  width: min(1120px, 100%);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  padding: 22px;
+  border-radius: 30px;
+  background: var(--panel-strong);
+  border: 1px solid rgba(111, 82, 56, 0.14);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 18px;
+}
+
+.modal-head,
+.role-designer-toolbar,
+.role-editor-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.role-designer-toolbar {
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background: rgba(31, 95, 132, 0.07);
+  border: 1px solid rgba(31, 95, 132, 0.1);
+}
+
+.role-designer-toolbar label {
+  min-width: 220px;
+}
+
+.role-designer-list {
+  display: grid;
+  gap: 14px;
+}
+
+.role-editor {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(111, 82, 56, 0.12);
+}
+
+.role-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.role-editor-span {
+  grid-column: span 3;
+}
+
+.danger-btn {
+  border-radius: 999px;
+  padding: 0.72rem 1rem;
+  color: #fff7f0;
+  background: linear-gradient(135deg, #a44c3a 0%, #7f2a1f 100%);
+}
+
+.danger-btn:hover {
+  transform: translateY(-2px);
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
 .field-grid label,
 .director-box {
   display: grid;
@@ -717,6 +888,15 @@ input[type="range"] {
     grid-template-columns: 1fr;
   }
 
+  .main-role-grid,
+  .role-editor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .role-editor-span {
+    grid-column: span 1;
+  }
+
   .inspiration-panel,
   .outline-panel,
   .sandbox-panel,
@@ -748,6 +928,9 @@ input[type="range"] {
     grid-template-columns: 1fr;
   }
 
+  .role-composer-head,
+  .modal-head,
+  .role-designer-toolbar,
   .panel-heading,
   .tree-head,
   .chat-toolbar,
