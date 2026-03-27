@@ -9,7 +9,9 @@
       renderAllChips,
       refreshRoleUI,
       updateEpisodeCountDisplay,
-      raExportArtifacts
+      raExportArtifacts,
+      showLoading,
+      hideLoading
     } = deps;
 
     const config = global.PLAYLET_CONFIG || {};
@@ -178,6 +180,13 @@
 
     async function handleConfirmOneLine() {
       const value = oneLineInput?.value || "";
+      const targetLabel = oneLineTarget === "background" ? "背景卡片" : "角色卡片";
+      if (typeof showLoading === "function") {
+        showLoading({
+          title: `正在生成${targetLabel}，请稍等`,
+          hint: "模型正在根据你的一句话组织可直接填充的结构化内容。"
+        });
+      }
       try {
         if (oneLineTarget === "background") {
           const payload = await request("/assist/one-line/background", { text: value });
@@ -218,6 +227,7 @@
         }
         setApiPreview("一句话生成回退为本地规则", { error: error.message });
       } finally {
+        if (typeof hideLoading === "function") hideLoading();
         closeOneLineModal();
       }
     }

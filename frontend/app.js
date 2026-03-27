@@ -22,7 +22,7 @@ const state = {
   roleDrafts: [],
   roleCounter: 1,
   roleDesignerOpen: false,
-  hasOpenedRoleDesignerOnce: false,
+  hasOpenedRoleDesignerOnce: true,
   showInitialRoleHints: true,
   currentStage: 1,
   hasExportedArtifacts: false,
@@ -74,6 +74,7 @@ const dom = {
   timelineSlider: document.querySelector("#timelineSlider"),
   timelineValue: document.querySelector("#timelineValue"),
   startDemoBtn: document.querySelector("#startDemo"),
+  runToggleBtn: document.querySelector("#runToggleBtn"),
   nextEpisodeBtn: document.querySelector("#nextEpisodeBtn"),
   outlineFeedback: document.querySelector("#outlineFeedback"),
   directorCommand: document.querySelector("#directorCommand"),
@@ -356,10 +357,7 @@ function formatRoleCardBadge(role) {
 }
 
 function initializeRoleDrafts() {
-  state.roleDrafts = starterRoleDefinitions.map((definition) => createRoleDraft(definition.group, definition.templateId, {
-    isStarter: true,
-    role_position: definition.rolePosition
-  }));
+  state.roleDrafts = [];
 }
 
 function getRoleDraftById(roleId) {
@@ -545,8 +543,8 @@ function closeRoleDesigner() {
 function refreshRoleUI(options = {}) {
   updateRoleSummaryText();
   syncRoleOptions(getCurrentRoleNames());
-  dom.roleEntryHint.classList.toggle("hidden", state.hasOpenedRoleDesignerOnce);
-  dom.roleComposerDisplay.classList.toggle("hidden", !state.hasOpenedRoleDesignerOnce);
+  dom.roleEntryHint.classList.add("hidden");
+  dom.roleComposerDisplay.classList.remove("hidden");
   if (!options.skipMainCards) {
     renderMainRoleCards();
   }
@@ -577,7 +575,7 @@ function initializeDefaults() {
   dom.scriptOutput.textContent = "还没有导出结果。先生成大纲并跑完一轮推演。";
   initializeRoleDrafts();
   renderRolePresetOptions();
-  dom.roleComposerDisplay.classList.toggle("hidden", !state.hasOpenedRoleDesignerOnce);
+  dom.roleComposerDisplay.classList.remove("hidden");
   renderMainRoleCards();
   updateEpisodeCountDisplay();
   updateRoundDisplay();
@@ -755,6 +753,31 @@ function syncRuntimeStatus() {
 function updateStartDemoButton() {
   if (!dom.startDemoBtn) return;
   dom.startDemoBtn.disabled = state.hasTriggeredStartDemo;
+}
+
+function updateRunToggleButton() {
+  if (!dom.runToggleBtn) return;
+  dom.runToggleBtn.disabled = false;
+  dom.runToggleBtn.classList.remove("warning-btn");
+  dom.runToggleBtn.classList.add("primary-btn");
+  dom.runToggleBtn.textContent = "继续推演";
+
+  if (!state.snapshot) {
+    return;
+  }
+  if (state.snapshot?.result) {
+    dom.runToggleBtn.disabled = true;
+    dom.runToggleBtn.textContent = "本集已结束";
+    return;
+  }
+  if (state.snapshot?.episode_status === "paused") {
+    dom.runToggleBtn.textContent = "继续推演";
+    return;
+  }
+
+  dom.runToggleBtn.classList.remove("primary-btn");
+  dom.runToggleBtn.classList.add("warning-btn");
+  dom.runToggleBtn.textContent = "暂停推演";
 }
 
 function setApiPreview(title, payload) {
@@ -1177,6 +1200,7 @@ function applySnapshot(snapshot) {
   renderMonitorFeed();
   syncRuntimeStatus();
   updateStartDemoButton();
+  updateRunToggleButton();
   updateNextEpisodeButton();
   syncStageNav();
 }
@@ -1199,12 +1223,14 @@ function resetSessionState() {
   renderMessages();
   renderMonitorFeed();
   updateStartDemoButton();
+  updateRunToggleButton();
   updateNextEpisodeButton();
   dom.timelineSlider.max = "0";
   dom.timelineSlider.value = "0";
   updateTimelineDisplay();
   setStage(1, { force: true });
   dom.turnBadge.textContent = "第 0 句";
+  updateRunToggleButton();
 }
 
 const runtimeActions = window.createRuntimeActions({
@@ -1229,6 +1255,7 @@ const raReviewOutline = runtimeActions.reviewOutline;
 const raApproveOutline = runtimeActions.approveOutline;
 const raQuickStart = runtimeActions.quickStart;
 const raContinueScene = runtimeActions.continueScene;
+const raToggleScene = runtimeActions.toggleScene;
 const raStartNextEpisode = runtimeActions.startNextEpisode;
 const raCutScene = runtimeActions.cutScene;
 const raSendDirective = runtimeActions.sendDirective;
@@ -1262,6 +1289,7 @@ window.bindFrontendEvents({
   raApproveOutline,
   raQuickStart,
   raContinueScene,
+  raToggleScene,
   raStartNextEpisode,
   raCutScene,
   raSendDirective,
@@ -1281,7 +1309,9 @@ if (typeof window.initWorkflowMode === "function") {
     renderAllChips,
     refreshRoleUI,
     updateEpisodeCountDisplay,
-    raExportArtifacts
+    raExportArtifacts,
+    showLoading,
+    hideLoading
   });
 }
 

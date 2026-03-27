@@ -1078,6 +1078,34 @@ input[type="number"] {
   min-height: 88px;
 }
 
+.control-advanced {
+  border: 1px solid rgba(111, 82, 56, 0.16);
+  border-radius: var(--radius-md);
+  padding: 10px 12px 12px;
+  background: rgba(255, 249, 240, 0.62);
+  display: grid;
+  gap: 10px;
+}
+
+.control-advanced summary {
+  cursor: pointer;
+  color: var(--secondary);
+  font-weight: 600;
+  list-style: none;
+}
+
+.control-advanced summary::-webkit-details-marker {
+  display: none;
+}
+
+.control-advanced summary::before {
+  content: "▸ ";
+}
+
+.control-advanced[open] summary::before {
+  content: "▾ ";
+}
+
 .control-panel .monitor-card {
   padding: 14px;
 }

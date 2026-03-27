@@ -23,6 +23,7 @@
       raApproveOutline,
       raQuickStart,
       raContinueScene,
+      raToggleScene,
       raStartNextEpisode,
       raCutScene,
       raSendDirective,
@@ -75,9 +76,8 @@
       }
     });
 
-    on("#continueScene", "click", raContinueScene);
+    on("#runToggleBtn", "click", raToggleScene);
     on("#nextEpisodeBtn", "click", raStartNextEpisode);
-    on("#cutScene", "click", raCutScene);
     on("#sendDirective", "click", raSendDirective);
     on("#rollbackBtn", "click", raRollbackScene);
     on("#formatScript", "click", raExportArtifacts);

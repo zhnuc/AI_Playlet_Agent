@@ -75,9 +75,6 @@
             <p class="panel-kicker">阶段 1</p>
             <h2>基础设定</h2>
           </div>
-          <div class="panel-heading-actions">
-            <button class="icon-btn" id="randomizeAll" type="button" aria-label="随机刷新灵感">✦</button>
-          </div>
         </div>
 
         <article class="setup-card" id="backgroundSetupCard">
@@ -246,28 +243,30 @@
             <span>当前</span>
           </div>
           <div class="action-row">
-            <button class="ghost-btn" id="rollbackBtn" type="button">执行回档</button>
+            <button class="ghost-btn" id="rollbackBtn" type="button">确认回档</button>
           </div>
         </div>
 
         <div class="action-row">
-          <button class="warning-btn" id="cutScene" type="button">暂停</button>
-          <button class="primary-btn" id="continueScene" type="button">继续推演</button>
+          <button class="primary-btn" id="runToggleBtn" type="button">继续推演</button>
         </div>
 
-        <label class="director-box">
-          导演指令
-          <textarea id="directorCommand" rows="4" placeholder="例如：让林若雪下一句先抛证据，不做解释。"></textarea>
-        </label>
+        <details class="control-advanced" id="advancedControls">
+          <summary>高级控制（导演指令）</summary>
+          <label class="director-box">
+            导演指令
+            <textarea id="directorCommand" rows="4" placeholder="例如：让林若雪下一句先抛证据，不做解释。"></textarea>
+          </label>
 
-        <label class="director-box">
-          指令对象
-          <select id="targetRole"></select>
-        </label>
+          <label class="director-box">
+            指令对象
+            <select id="targetRole"></select>
+          </label>
 
-        <div class="action-row">
-          <button class="ghost-btn" id="sendDirective" type="button">注入下一轮指令</button>
-        </div>
+          <div class="action-row">
+            <button class="ghost-btn" id="sendDirective" type="button">注入下一轮指令</button>
+          </div>
+        </details>
       </section>
 
       <section class="panel monitor-panel" data-stage="3">
