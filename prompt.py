@@ -4,13 +4,21 @@
 def build_chara(runtime_config: dict) -> str:
     chara_text = ""
     for name, info in runtime_config["character_roster"].items():
-        appearance = "、".join(info["appearance_tags"])
-        personality = "、".join(info["personality_tags"])
-        chara_text += f"{info['char_id']}：{name}（{info['role_type']}）：\n"
-        chara_text += f"-【基础信息】：{info['gender']}，{info['age']}岁，{info['identity']}\n"
+        appearance = "、".join(info.get("appearance_tags", []))
+        personality = "、".join(info.get("personality_tags", []))
+        char_id = info.get("char_id", "?")
+        role_type = info.get("role_type", "配角")
+        gender = info.get("gender", "未设定")
+        age = info.get("age", 0)
+        identity = info.get("identity", "待设定身份")
+        catchphrase = str(info.get("catchphrase", "") or "").strip()
+        chara_text += f"{char_id}：{name}（{role_type}）：\n"
+        chara_text += f"-【基础信息】：{gender}，{age}岁，{identity}\n"
         chara_text += f"-【外貌】：{appearance}\n"
         chara_text += f"-【性格】：{personality}\n"
-        chara_text += f"-【口头禅】：{info['catchphrase']}\n\n"
+        if catchphrase:
+            chara_text += f"-【口头禅】：{catchphrase}\n"
+        chara_text += "\n"
     return chara_text
 
 
