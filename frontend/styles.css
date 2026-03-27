@@ -272,6 +272,26 @@ select:focus {
   height: auto !important;
 }
 
+.workspace-grid.stage-focus.stage-focus-3 {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-rows: auto auto;
+}
+
+.workspace-grid.stage-focus.stage-focus-3 .sandbox-panel {
+  grid-column: 1 / 2 !important;
+  grid-row: 1 / 3;
+}
+
+.workspace-grid.stage-focus.stage-focus-3 .control-panel {
+  grid-column: 2 / 3 !important;
+  grid-row: 1 / 2;
+}
+
+.workspace-grid.stage-focus.stage-focus-3 .monitor-panel {
+  grid-column: 2 / 3 !important;
+  grid-row: 2 / 3;
+}
+
 .stage-hidden {
   display: none !important;
 }
@@ -1032,6 +1052,12 @@ input[type="range"] {
   gap: 12px;
 }
 
+.stage-footer-actions {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+}
+
 .stage-hint {
   margin: 0;
   padding: 10px 14px;
@@ -1075,6 +1101,17 @@ input[type="range"] {
     grid-template-columns: 1fr;
   }
 
+  .workspace-grid.stage-focus.stage-focus-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-grid.stage-focus.stage-focus-3 .sandbox-panel,
+  .workspace-grid.stage-focus.stage-focus-3 .control-panel,
+  .workspace-grid.stage-focus.stage-focus-3 .monitor-panel {
+    grid-column: 1 / -1 !important;
+    grid-row: auto;
+  }
+
   .main-role-grid,
   .role-editor-grid {
     grid-template-columns: 1fr;
@@ -1115,6 +1152,11 @@ input[type="range"] {
   .stage-footer-nav {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .stage-footer-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
 
   .page-shell {

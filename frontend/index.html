@@ -15,9 +15,6 @@
       <div class="hero-copy">
         <p class="eyebrow">AI Playlet Agent</p>
         <h1>短剧创作指挥台</h1>
-        <div class="hero-actions">
-          <button class="ghost-btn" id="resetSessionBtn" type="button">重置会话</button>
-        </div>
       </div>
       <div class="hero-metrics">
         <article>
@@ -62,7 +59,6 @@
             <h2>灵感输入与模式设定</h2>
           </div>
           <div class="panel-heading-actions">
-            <button class="ghost-btn small" id="generateOutlineBtn" type="button">生成大纲</button>
             <button class="icon-btn" id="randomizeAll" type="button" aria-label="随机刷新灵感">✦</button>
           </div>
         </div>
@@ -155,10 +151,6 @@
               <h3>剧本结构树</h3>
               <p id="outlineStatus">还没有可用大纲</p>
             </div>
-            <div class="tree-actions">
-              <button class="ghost-btn small" id="approveOutlineBtn" type="button">审核通过</button>
-              <button class="primary-btn small" id="startDemo" type="button">开始一轮推演</button>
-            </div>
           </div>
           <ul id="outlineTree"></ul>
         </aside>
@@ -172,7 +164,7 @@
               <strong id="roundValue">6 轮目标</strong>
               <span>12 轮目标</span>
             </div>
-            <small id="roundHint">说明：这是节奏目标，不是强制截断。收束由剧情完成度与 end/cut 决定。</small>
+            <small id="roundHint">说明：这是“建议轮次”，用于提醒在该轮次附近收束；不会强制停止，剧情未完成会继续。</small>
           </div>
 
           <label class="director-box">
@@ -181,15 +173,17 @@
           </label>
 
           <div class="action-row">
+            <button class="ghost-btn" id="generateOutlineBtn" type="button">生成大纲</button>
             <button class="ghost-btn" id="reviewOutlineBtn" type="button">提交审稿意见</button>
+            <button class="primary-btn" id="approveOutlineBtn" type="button">审核通过</button>
           </div>
         </div>
       </section>
 
-      <section class="panel sandbox-panel" data-stage="2">
+      <section class="panel sandbox-panel" data-stage="3">
         <div class="panel-heading">
           <div>
-            <p class="panel-kicker">阶段 2-B</p>
+            <p class="panel-kicker">阶段 3-A</p>
             <h2>群聊式推演沙盒</h2>
           </div>
           <div class="live-state">
@@ -202,6 +196,8 @@
             <span>角色演绎区</span>
             <div class="toolbar-actions">
               <span id="turnBadge">第 0 句</span>
+              <button class="primary-btn small" id="startDemo" type="button">开始一轮推演</button>
+              <button class="ghost-btn small hidden" id="nextEpisodeBtn" type="button">开始下一集</button>
               <button class="ghost-btn small" id="refreshStageBtn" type="button">刷新快照</button>
             </div>
           </div>
@@ -212,7 +208,7 @@
       <section class="panel control-panel" data-stage="3">
         <div class="panel-heading">
           <div>
-            <p class="panel-kicker">阶段 3</p>
+            <p class="panel-kicker">阶段 3-B</p>
             <h2>导演与监制控制</h2>
           </div>
         </div>
@@ -230,7 +226,6 @@
         <div class="action-row">
           <button class="warning-btn" id="cutScene" type="button">咔 Cut</button>
           <button class="primary-btn" id="continueScene" type="button">继续推演</button>
-          <button class="ghost-btn hidden" id="nextEpisodeBtn" type="button">开始下一集</button>
         </div>
 
         <div class="action-row">
@@ -257,7 +252,7 @@
       <section class="panel monitor-panel" data-stage="3">
         <div class="panel-heading">
           <div>
-            <p class="panel-kicker">阶段 3-B</p>
+            <p class="panel-kicker">阶段 3-C</p>
             <h2>监控监制</h2>
           </div>
         </div>
@@ -296,7 +291,10 @@
     <footer class="stage-footer-nav">
       <button class="ghost-btn" id="stagePrevBtn" type="button">上一步</button>
       <p class="stage-hint" id="stageHint">阶段 1：先完成输入配置与角色设定。</p>
-      <button class="primary-btn" id="stageNextBtn" type="button">下一步</button>
+      <div class="stage-footer-actions">
+        <button class="ghost-btn" id="resetSessionBtn" type="button">重置会话</button>
+        <button class="primary-btn" id="stageNextBtn" type="button">下一步</button>
+      </div>
     </footer>
   </div>
 
@@ -334,6 +332,9 @@
     </section>
   </div>
 
+  <script src="./js/config.js"></script>
+  <script src="./js/runtime-actions.js"></script>
+  <script src="./js/bind-events.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

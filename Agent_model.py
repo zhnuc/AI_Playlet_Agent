@@ -298,9 +298,25 @@ class Muilty_Agent_Box(Role_Agent_Box):
 
 
 if __name__ == "__main__":
-    from prompt import planner_agent_prompt
+    from prompt import build_planner_agent_prompt
 
     base_url, api_key, model = load_env()
     planner_agent = Planner_Agent(base_url, api_key, model)
-    output = planner_agent.generate_outline(planner_agent_prompt)
+    demo_runtime_config = {
+        "drama_settings": {"theme": "demo", "target_audience": "demo", "expected_episodes": 1},
+        "logline": "demo",
+        "character_roster": {
+            "DemoRole": {
+                "char_id": 1,
+                "role_type": "主角",
+                "gender": "女",
+                "age": 20,
+                "identity": "测试角色",
+                "appearance_tags": ["测试"],
+                "personality_tags": ["测试"],
+                "catchphrase": "测试",
+            }
+        },
+    }
+    output = planner_agent.generate_outline(build_planner_agent_prompt(demo_runtime_config))
     print(type(output))

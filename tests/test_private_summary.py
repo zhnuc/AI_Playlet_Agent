@@ -6,7 +6,7 @@ from pathlib import Path
 
 from context_builder import build_role_context
 from event_committer import append_event, finalize_role_memories_for_next_episode
-from global_config import global_config
+from tests.runtime_config_fixture import global_config
 from main_loop import run_episode, run_season
 from story_state import Event, RoleMemory, create_runtime_state
 

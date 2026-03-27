@@ -2,7 +2,7 @@ import copy
 import tempfile
 import unittest
 
-from global_config import global_config
+from tests.runtime_config_fixture import global_config
 from input_adapter import build_free_mode_planner_output
 from main_loop import create_episode_session, run_episode
 from planner_review import PlannerReviewState, approve_planner_outline, revise_planner_outline

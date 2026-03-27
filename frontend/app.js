@@ -1,205 +1,14 @@
-const options = {
-  genre: ["重生复仇", "豪门虐恋", "逆袭爽文", "先婚后爱", "职场博弈", "悬疑反转"],
-  runMode: [
-    { value: "planned", label: "大纲驱动" },
-    { value: "free", label: "自由开场" }
-  ],
-  scene: ["总裁办公室", "家族晚宴", "发布会后台", "直播间", "医院走廊", "董事会会议室"]
-};
-
-const roleTemplateCatalog = {
-  heroine: [
-    {
-      id: "reborn-heiress",
-      label: "重生真千金",
-      draft: {
-        name: "林若雪",
-        role_type: "主角",
-        gender: "女",
-        age: 22,
-        identity: "真千金",
-        appearance_tags: ["美艳御姐", "冰霜美人"],
-        personality_tags: ["毒舌", "冷静缜密", "杀伐果断"],
-        catchphrase: "属于我的东西，连本带利都要拿回来！"
-      }
-    },
-    {
-      id: "ice-lawyer",
-      label: "冷感律师女主",
-      draft: {
-        name: "沈书意",
-        role_type: "主角",
-        gender: "女",
-        age: 29,
-        identity: "金牌律师",
-        appearance_tags: ["利落短发", "冷白皮", "锋利眼神"],
-        personality_tags: ["克制", "聪明", "反击心强"],
-        catchphrase: "要讲规矩，就先把证据摆上桌。"
-      }
-    }
-  ],
-  hero: [
-    {
-      id: "capital-heir",
-      label: "京圈太子爷",
-      draft: {
-        name: "顾寒霆",
-        role_type: "主角",
-        gender: "男",
-        age: 28,
-        identity: "京圈太子爷",
-        appearance_tags: ["高大霸气", "西装暴徒"],
-        personality_tags: ["霸道", "自傲", "暴脾气"],
-        catchphrase: "女人，别无理取闹，你在玩火。"
-      }
-    },
-    {
-      id: "hidden-investor",
-      label: "隐忍投资人",
-      draft: {
-        name: "陆沉舟",
-        role_type: "主角",
-        gender: "男",
-        age: 31,
-        identity: "神秘投资人",
-        appearance_tags: ["黑衬衫", "疏离感", "冷峻轮廓"],
-        personality_tags: ["沉稳", "控制欲", "善于布局"],
-        catchphrase: "我不做赔本交易，包括感情。"
-      }
-    }
-  ],
-  villain: [
-    {
-      id: "false-heiress",
-      label: "假千金反派",
-      draft: {
-        name: "林白莲",
-        role_type: "反派",
-        gender: "女",
-        age: 21,
-        identity: "假千金",
-        appearance_tags: ["小白花", "楚楚可怜", "柔情似水"],
-        personality_tags: ["绿茶", "心机", "嫉妒心强"],
-        catchphrase: "姐姐，都是我的错，你别怪寒霆哥哥。"
-      }
-    },
-    {
-      id: "queen-rival",
-      label: "名媛对手盘",
-      draft: {
-        name: "苏晚棠",
-        role_type: "反派",
-        gender: "女",
-        age: 27,
-        identity: "顶流名媛",
-        appearance_tags: ["红唇高跟", "锋利妆容", "高定礼服"],
-        personality_tags: ["强势", "讥讽", "善于操控舆论"],
-        catchphrase: "你以为翻盘了？我只是让你多喘两口气。"
-      }
-    }
-  ],
-  support: [
-    {
-      id: "wingwoman",
-      label: "闺蜜军师",
-      draft: {
-        name: "沈知意",
-        role_type: "配角",
-        gender: "女",
-        age: 25,
-        identity: "女主闺蜜兼军师",
-        appearance_tags: ["明艳", "利落穿搭"],
-        personality_tags: ["嘴快", "护短", "执行力强"],
-        catchphrase: "你只管往前冲，脏活我来补刀。"
-      }
-    },
-    {
-      id: "assistant",
-      label: "总裁助理",
-      draft: {
-        name: "周砚",
-        role_type: "配角",
-        gender: "男",
-        age: 26,
-        identity: "总裁助理",
-        appearance_tags: ["金丝眼镜", "西装笔挺"],
-        personality_tags: ["谨慎", "机灵", "站队快"],
-        catchphrase: "顾总，这件事恐怕已经压不住了。"
-      }
-    },
-    {
-      id: "elder",
-      label: "家族长辈",
-      draft: {
-        name: "林夫人",
-        role_type: "配角",
-        gender: "女",
-        age: 48,
-        identity: "家族长辈",
-        appearance_tags: ["珍珠耳环", "端庄旗袍"],
-        personality_tags: ["强势", "护短", "重体面"],
-        catchphrase: "家丑不外扬，谁都别想砸了这个家。"
-      }
-    },
-    {
-      id: "reporter",
-      label: "媒体记者",
-      draft: {
-        name: "唐梨",
-        role_type: "配角",
-        gender: "女",
-        age: 24,
-        identity: "娱乐记者",
-        appearance_tags: ["短发", "相机包"],
-        personality_tags: ["敏锐", "爱八卦", "追热点"],
-        catchphrase: "这个爆点一出来，全网今晚都别睡了。"
-      }
-    }
-  ]
-};
-
-const rolePositionCatalog = [
-  { value: "male_lead_1", label: "男一号", type: "主角", priority: 1, unique: true, lockedGender: "男" },
-  { value: "female_lead_1", label: "女一号", type: "主角", priority: 2, unique: true, lockedGender: "女" },
-  { value: "chief_villain", label: "大反派", type: "反派", priority: 3, unique: true },
-  { value: "male_lead_2", label: "男二号", type: "主角", priority: 4, unique: true, lockedGender: "男" },
-  { value: "female_lead_2", label: "女二号", type: "主角", priority: 5, unique: true, lockedGender: "女" },
-  { value: "minor_villain", label: "小反派", type: "反派", priority: 6, unique: false },
-  { value: "supporting", label: "配角", type: "配角", priority: 99, unique: false }
-];
-
-const rolePositionMap = Object.fromEntries(rolePositionCatalog.map((item) => [item.value, item]));
-
-const defaultRolePositionByGroup = {
-  heroine: "female_lead_1",
-  hero: "male_lead_1",
-  villain: "chief_villain",
-  support: "supporting"
-};
-
-const starterRoleDefinitions = [
-  { group: "heroine", templateId: "reborn-heiress", rolePosition: "female_lead_1" },
-  { group: "hero", templateId: "capital-heir", rolePosition: "male_lead_1" },
-  { group: "villain", templateId: "false-heiress", rolePosition: "chief_villain" }
-];
-
-const allRoleTemplateGroups = ["heroine", "hero", "villain", "support"];
-
-const roleGroupLabels = {
-  heroine: "女主模板",
-  hero: "男主模板",
-  villain: "反派模板",
-  support: "配角模板"
-};
-
-const promptMap = {
-  重生复仇: "首场戏直接触发上一世遗留的信息差，前三句必须听得出人物带着旧账而来。",
-  豪门虐恋: "对话要短，压迫感要强，尽量把情绪藏在动作和停顿里。",
-  逆袭爽文: "每轮都让主角更占上风，避免重复争吵，优先抛出证据或权力转换。",
-  先婚后爱: "冲突中保留暧昧缝隙，让表面针锋相对和潜在互相试探同时存在。",
-  职场博弈: "每句台词都尽量带目标感，不说空话，优先围绕利益和职位关系推进。",
-  悬疑反转: "动作描写要留白，让观众知道事情不对劲，但不要一次性把底牌掀完。"
-};
+const {
+  options,
+  roleTemplateCatalog,
+  rolePositionCatalog,
+  rolePositionMap,
+  defaultRolePositionByGroup,
+  starterRoleDefinitions,
+  allRoleTemplateGroups,
+  roleGroupLabels,
+  promptMap
+} = window.PLAYLET_CONFIG;
 
 const state = {
   selectedGenre: options.genre[0],
@@ -216,7 +25,8 @@ const state = {
   hasOpenedRoleDesignerOnce: false,
   showInitialRoleHints: true,
   currentStage: 1,
-  hasExportedArtifacts: false
+  hasExportedArtifacts: false,
+  hasTriggeredStartDemo: false
 };
 
 const dom = {
@@ -260,6 +70,7 @@ const dom = {
   roundValue: document.querySelector("#roundValue"),
   timelineSlider: document.querySelector("#timelineSlider"),
   timelineValue: document.querySelector("#timelineValue"),
+  startDemoBtn: document.querySelector("#startDemo"),
   nextEpisodeBtn: document.querySelector("#nextEpisodeBtn"),
   outlineFeedback: document.querySelector("#outlineFeedback"),
   directorCommand: document.querySelector("#directorCommand"),
@@ -272,8 +83,8 @@ const dom = {
 
 const stagePanels = {
   1: [".inspiration-panel"],
-  2: [".outline-panel", ".sandbox-panel"],
-  3: [".control-panel", ".monitor-panel"],
+  2: [".outline-panel"],
+  3: [".sandbox-panel", ".control-panel", ".monitor-panel"],
   4: [".output-panel"]
 };
 
@@ -322,6 +133,7 @@ function canEnterStage(targetStage) {
 function syncStagePanels() {
   if (!dom.workspaceGrid) return;
   dom.workspaceGrid.classList.add("stage-focus");
+  dom.workspaceGrid.classList.toggle("stage-focus-3", state.currentStage === 3);
   const panels = Array.from(dom.workspaceGrid.querySelectorAll(".panel"));
   panels.forEach((panel) => panel.classList.add("stage-hidden"));
   (stagePanels[state.currentStage] || []).forEach((selector) => {
@@ -847,6 +659,46 @@ function setStatus(text) {
   dom.streamStatus.textContent = text;
 }
 
+function syncRuntimeStatus() {
+  if (!state.sessionId) {
+    setStatus("待机中");
+    return;
+  }
+  if (!state.snapshot) {
+    setStatus(state.outlineApproved ? "大纲已通过，等待开始推演" : "会话已创建");
+    return;
+  }
+
+  const resultStatus = state.snapshot?.result?.status;
+  if (resultStatus) {
+    const statusMap = {
+      ended: "自然收束",
+      director_cut: "导演Cut",
+      max_turns_reached: "达到上限",
+      handoff: "交接",
+      api_error: "模型错误",
+      format_error: "格式错误",
+      key_error: "字段错误"
+    };
+    setStatus(`本集结束：${statusMap[resultStatus] || resultStatus}`);
+    return;
+  }
+
+  if (state.snapshot?.episode_status === "paused") {
+    setStatus("当前暂停");
+    return;
+  }
+
+  const episode = getCurrentEpisodeNumber(state.snapshot);
+  const turn = state.snapshot?.current_turn ?? 0;
+  setStatus(`第 ${episode} 集进行中 · 第 ${turn} 轮`);
+}
+
+function updateStartDemoButton() {
+  if (!dom.startDemoBtn) return;
+  dom.startDemoBtn.disabled = state.hasTriggeredStartDemo;
+}
+
 function setApiPreview(title, payload) {
   const text = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
   dom.apiSnippet.textContent = text;
@@ -912,26 +764,6 @@ function buildConfigOverride() {
   }
 
   return config;
-}
-
-async function request(path, options = {}) {
-  const response = await fetch(path, {
-    method: options.method || "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined
-  });
-
-  const text = await response.text();
-  const payload = text ? JSON.parse(text) : {};
-
-  if (!response.ok) {
-    const detail = payload?.detail || response.statusText || "请求失败";
-    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
-  }
-  return payload;
 }
 
 function handleRoleDesignerInput(event) {
@@ -1258,6 +1090,9 @@ function updateNextEpisodeButton() {
 
 function applySnapshot(snapshot) {
   state.snapshot = snapshot || null;
+  if (snapshot) {
+    state.hasTriggeredStartDemo = true;
+  }
   if (snapshot?.planner_output) {
     state.plannerOutput = snapshot.planner_output;
   }
@@ -1282,6 +1117,8 @@ function applySnapshot(snapshot) {
   renderOutline();
   renderMessages();
   renderMonitorFeed();
+  syncRuntimeStatus();
+  updateStartDemoButton();
   updateNextEpisodeButton();
   syncStageNav();
 }
@@ -1294,6 +1131,7 @@ function resetSessionState() {
   state.shouldContinue = false;
   state.isLooping = false;
   state.hasExportedArtifacts = false;
+  state.hasTriggeredStartDemo = false;
   dom.sessionBadge.textContent = "未创建";
   setStatus("待机中");
   dom.outlineStatus.textContent = "还没有可用大纲";
@@ -1302,6 +1140,7 @@ function resetSessionState() {
   renderOutline();
   renderMessages();
   renderMonitorFeed();
+  updateStartDemoButton();
   updateNextEpisodeButton();
   dom.timelineSlider.max = "0";
   dom.timelineSlider.value = "0";
@@ -1310,428 +1149,66 @@ function resetSessionState() {
   dom.turnBadge.textContent = "第 0 句";
 }
 
-async function createSession(force = false) {
-  if (state.sessionId && !force) {
-    return state.sessionId;
-  }
-
-  const configOverride = buildConfigOverride();
-
-  if (state.runMode === "free") {
-    const payload = await request("/sessions/free", {
-      method: "POST",
-      body: {
-        config_override: configOverride,
-        opening_scene: dom.sceneInput.value.trim(),
-        scene_roles: Object.keys(configOverride.character_roster),
-        story_hook: dom.plotInput.value.trim()
-      }
-    });
-    state.sessionId = payload.session_id;
-    state.plannerOutput = payload.planner_output;
-    state.outlineApproved = true;
-    dom.sessionBadge.textContent = payload.session_id;
-    setStatus("free session 已创建");
-    renderOutline();
-    setApiPreview("已创建 free session。", payload);
-    return payload.session_id;
-  }
-
-  const payload = await request("/sessions/planned", {
-    method: "POST",
-    body: {
-      config_override: configOverride
-    }
-  });
-
-  state.sessionId = payload.session_id;
-  state.plannerOutput = null;
-  state.outlineApproved = false;
-  dom.sessionBadge.textContent = payload.session_id;
-  setStatus("planned session 已创建");
-  setApiPreview("已创建 planned session。", payload);
-  return payload.session_id;
-}
-
-async function generateOutline() {
-  if (state.runMode === "free") {
-    await createSession(true);
-    renderOutline();
-    setStage(2, { force: true });
-    setStatus("free 模式已生成最小 episode plan");
-    return;
-  }
-
-  const sessionId = await createSession(true);
-  const payload = await request(`/sessions/${sessionId}/outline/generate`, {
-    method: "POST"
-  });
-  const episodes = payload?.planner_output?.episodes;
-  if (!Array.isArray(episodes) || episodes.length === 0) {
-    state.plannerOutput = null;
-    state.outlineApproved = false;
-    renderOutline();
-    setStatus("大纲生成失败");
-    setApiPreview("outline 生成失败", payload);
-    return;
-  }
-  state.plannerOutput = payload.planner_output;
-  state.outlineApproved = false;
-  renderOutline();
-  setStage(2, { force: true });
-  setStatus("大纲已生成，等待审核");
-  setApiPreview("planner_output 已生成。", payload);
-}
-
-async function reviewOutline() {
-  if (state.runMode === "free") {
-    setStatus("free 模式不需要大纲审稿，可直接开跑");
-    return;
-  }
-  if (!state.sessionId) {
-    await generateOutline();
-  }
-  const feedback = dom.outlineFeedback.value.trim();
-  if (!feedback) {
-    setStatus("先写一条审稿意见");
-    return;
-  }
-  const payload = await request(`/sessions/${state.sessionId}/outline/review`, {
-    method: "POST",
-    body: { feedback }
-  });
-  state.plannerOutput = payload.planner_output;
-  state.outlineApproved = false;
-  renderOutline();
-  setStatus("大纲已按审稿意见重生成");
-  setApiPreview("大纲 review 完成。", payload);
-}
-
-async function approveOutline() {
-  if (state.runMode === "free") {
-    state.outlineApproved = true;
-    setStatus("free 模式默认已批准");
-    return;
-  }
-  if (!state.sessionId || !state.plannerOutput) {
-    await generateOutline();
-  }
-  const payload = await request(`/sessions/${state.sessionId}/outline/approve`, {
-    method: "POST"
-  });
-  state.plannerOutput = payload.planner_output;
-  state.outlineApproved = true;
-  renderOutline();
-  setStage(3, { force: true });
-  setStatus("大纲已审核通过");
-  setApiPreview("大纲已审核通过。", payload);
-}
-
-async function startEpisode() {
-  if (state.runMode === "planned") {
-    if (!state.plannerOutput) {
-      await generateOutline();
-    }
-    if (!state.outlineApproved) {
-      await approveOutline();
-    }
-  } else if (!state.sessionId) {
-    await createSession(true);
-  }
-
-  const payload = await request(`/sessions/${state.sessionId}/episode/start`, {
-    method: "POST",
-    body: {
-      episode: 1
-    }
-  });
-
-  applySnapshot(payload);
-  setStatus("runtime 已启动");
-  setApiPreview("episode runtime 已创建。", payload);
-}
-
-async function stepEpisode() {
-  const payload = await request(`/sessions/${state.sessionId}/episode/step`, {
-    method: "POST"
-  });
-  applySnapshot(payload.snapshot);
-  setApiPreview("推进了一轮 episode step。", payload);
-
-  const stepStatus = payload.step_result?.status;
-  if (state.snapshot?.result) {
-    const statusMap = {
-      ended: "剧情自然收束",
-      director_cut: "导演切断",
-      max_turns_reached: "达到轮数预算",
-      handoff: "路由移交",
-      api_error: "模型调用失败",
-      format_error: "模型格式错误",
-      key_error: "模型字段错误"
-    };
-    const resolved = statusMap[state.snapshot.result.status] || state.snapshot.result.status;
-    setStatus(`已结束：${resolved}`);
-    state.shouldContinue = false;
-  } else if (stepStatus === "paused") {
-    setStatus("已暂停");
-    state.shouldContinue = false;
-  } else {
-    setStatus(`进行中：第 ${state.snapshot?.current_turn ?? 0} 句`);
-  }
-}
-
-async function driveEpisodeLoop() {
-  if (state.isLooping || !state.sessionId) {
-    return;
-  }
-
-  state.isLooping = true;
-  try {
-    while (state.shouldContinue) {
-      await stepEpisode();
-      if (!state.shouldContinue || state.snapshot?.result || state.snapshot?.episode_status === "paused") {
-        break;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 400));
-    }
-  } finally {
-    state.isLooping = false;
-  }
-}
-
-async function quickStart() {
-  try {
-    setStage(3, { force: true });
-    await startEpisode();
-    state.shouldContinue = true;
-    await driveEpisodeLoop();
-  } catch (error) {
-    state.shouldContinue = false;
-    setStatus("启动失败");
-    setApiPreview("启动推演失败。", { error: error.message });
-  }
-}
-
-async function continueScene() {
-  try {
-    setStage(3, { force: true });
-    if (!state.sessionId || !state.snapshot) {
-      await quickStart();
-      return;
-    }
-
-    if (state.snapshot.episode_status === "paused") {
-      const payload = await request(`/sessions/${state.sessionId}/director`, {
-        method: "POST",
-        body: { command: "resume" }
-      });
-      applySnapshot(payload.snapshot);
-      setApiPreview("已恢复 episode runtime。", payload);
-    }
-
-    state.shouldContinue = true;
-    await driveEpisodeLoop();
-  } catch (error) {
-    setStatus("继续失败");
-    setApiPreview("继续推演失败。", { error: error.message });
-  }
-}
-
-async function startNextEpisode() {
-  try {
-    if (!state.sessionId || !state.snapshot || !state.plannerOutput?.episodes?.length) {
-      setStatus("先完成当前集初始化");
-      return;
-    }
-    const currentEpisode = getCurrentEpisodeNumber(state.snapshot);
-    const nextEpisode = currentEpisode + 1;
-    if (nextEpisode > state.plannerOutput.episodes.length) {
-      setStatus("已是最后一集");
-      return;
-    }
-
-    const payload = await request(`/sessions/${state.sessionId}/episode/start`, {
-      method: "POST",
-      body: { episode: nextEpisode }
-    });
-    applySnapshot(payload);
-    setStatus(`已开始第 ${nextEpisode} 集`);
-    setApiPreview("已切换到下一集", payload);
-  } catch (error) {
-    setApiPreview("启动下一集失败。", { error: error.message });
-  }
-}
-
-async function cutScene() {
-  if (!state.sessionId || !state.snapshot) {
-    setStatus("还没有运行中的场景");
-    return;
-  }
-  try {
-    state.shouldContinue = false;
-    const payload = await request(`/sessions/${state.sessionId}/director`, {
-      method: "POST",
-      body: { command: "cut" }
-    });
-    applySnapshot(payload.snapshot);
-    setStatus("导演已 Cut 当前场景");
-    setApiPreview("已执行 cut 指令。", payload);
-  } catch (error) {
-    setApiPreview("cut 指令失败。", { error: error.message });
-  }
-}
-
-async function sendDirective() {
-  if (!state.sessionId || !state.snapshot) {
-    setStatus("先启动一轮推演");
-    return;
-  }
-  const instruction = dom.directorCommand.value.trim();
-  if (!instruction) {
-    setStatus("先写导演指令");
-    return;
-  }
-  try {
-    const payload = await request(`/sessions/${state.sessionId}/director`, {
-      method: "POST",
-      body: {
-        command: "inject_instruction",
-        instruction,
-        target_role: dom.targetRole.value || null
-      }
-    });
-    applySnapshot(payload.snapshot);
-    setStatus("导演指令已写入下一轮 prompt");
-    setApiPreview("已注入导演指令。", payload);
-  } catch (error) {
-    setApiPreview("注入导演指令失败。", { error: error.message });
-  }
-}
-
-async function rollbackScene() {
-  if (!state.sessionId || !state.snapshot) {
-    setStatus("还没有可回档的 runtime");
-    return;
-  }
-  try {
-    state.shouldContinue = false;
-    const payload = await request(`/sessions/${state.sessionId}/director`, {
-      method: "POST",
-      body: {
-        command: "rollback",
-        step: Number(dom.timelineSlider.value)
-      }
-    });
-    applySnapshot(payload.snapshot);
-    setStatus(`已回档到第 ${dom.timelineSlider.value} 句`);
-    setApiPreview("已执行 rollback。", payload);
-  } catch (error) {
-    setApiPreview("rollback 失败。", { error: error.message });
-  }
-}
-
-async function exportArtifacts() {
-  if (!state.sessionId) {
-    setStatus("还没有 session");
-    return;
-  }
-  try {
-    const payload = await request(`/sessions/${state.sessionId}/export`, {
-      method: "POST"
-    });
-    state.hasExportedArtifacts = true;
-    setStage(4, { force: true });
-    dom.scriptOutput.textContent = payload.script || "没有 script 输出。";
-    setApiPreview("导出 artifacts 成功。", payload.shotlist || payload);
-    setStatus("已导出台本与分镜");
-  } catch (error) {
-    setApiPreview("导出失败。", { error: error.message });
-  }
-}
-
-function previewCurrentState() {
-  setApiPreview("当前前端状态快照。", {
-    sessionId: state.sessionId,
-    runMode: state.runMode,
-    outlineApproved: state.outlineApproved,
-    plannerOutput: state.plannerOutput,
-    snapshot: state.snapshot
-  });
-}
-
-async function refreshStage() {
-  if (!state.snapshot) {
-    renderMessages();
-    renderMonitorFeed();
-    return;
-  }
-  applySnapshot(state.snapshot);
-  setStatus("已刷新当前快照");
-}
-
-dom.randomizeAll = document.querySelector("#randomizeAll");
-document.querySelector("#randomizeAll").addEventListener("click", randomizeAll);
-document.querySelector("#optimizeInput").addEventListener("click", optimizeInput);
-document.querySelector("#episodeCount").addEventListener("input", updateEpisodeCountDisplay);
-document.querySelector("#roundLimit").addEventListener("input", updateRoundDisplay);
-document.querySelector("#timelineSlider").addEventListener("input", updateTimelineDisplay);
-dom.openRoleDesignerBtn.addEventListener("click", openRoleDesigner);
-document.addEventListener("click", (event) => {
-  const target = event.target;
-  if (!(target instanceof HTMLElement)) return;
-  const trigger = target.closest("#openRoleDesignerBtn");
-  if (!trigger) return;
-  event.preventDefault();
-  openRoleDesigner();
+const runtimeActions = window.createRuntimeActions({
+  state,
+  dom,
+  setStatus,
+  setApiPreview,
+  renderOutline,
+  setStage,
+  applySnapshot,
+  syncRuntimeStatus,
+  getCurrentEpisodeNumber,
+  renderMessages,
+  renderMonitorFeed,
+  buildConfigOverride
 });
-dom.closeRoleDesignerBtn.addEventListener("click", closeRoleDesigner);
-dom.roleDesignerModal.addEventListener("click", (event) => {
-  if (event.target instanceof HTMLElement && event.target.dataset.closeRoleModal === "true") {
-    closeRoleDesigner();
-  }
-});
-dom.addPresetRoleBtn.addEventListener("click", addPresetRole);
-dom.addCustomRoleBtn.addEventListener("click", addCustomRole);
-dom.roleDesignerList.addEventListener("input", handleRoleDesignerInput);
-dom.roleDesignerList.addEventListener("change", handleRoleDesignerChange);
-dom.roleDesignerList.addEventListener("click", handleRoleDesignerClick);
-document.querySelector("#generateOutlineBtn").addEventListener("click", () => generateOutline().catch((error) => setApiPreview("生成大纲失败。", { error: error.message })));
-document.querySelector("#reviewOutlineBtn").addEventListener("click", () => reviewOutline().catch((error) => setApiPreview("审稿失败。", { error: error.message })));
-document.querySelector("#approveOutlineBtn").addEventListener("click", () => approveOutline().catch((error) => setApiPreview("审核通过失败。", { error: error.message })));
-document.querySelector("#buildFreePlanBtn").addEventListener("click", () => {
-  state.runMode = "free";
-  syncStageNav();
-  dom.runModeResult.textContent = "自由开场";
-  dom.modeBadge.textContent = "自由开场";
-  renderAllChips();
-  generateOutline().catch((error) => setApiPreview("生成最小 episode plan 失败。", { error: error.message }));
-});
-document.querySelector("#startDemo").addEventListener("click", quickStart);
-document.querySelector("#continueScene").addEventListener("click", continueScene);
-document.querySelector("#nextEpisodeBtn").addEventListener("click", startNextEpisode);
-document.querySelector("#cutScene").addEventListener("click", cutScene);
-document.querySelector("#sendDirective").addEventListener("click", sendDirective);
-document.querySelector("#rollbackBtn").addEventListener("click", rollbackScene);
-document.querySelector("#formatScript").addEventListener("click", exportArtifacts);
-document.querySelector("#previewStateBtn").addEventListener("click", previewCurrentState);
-document.querySelector("#refreshStageBtn").addEventListener("click", refreshStage);
-document.querySelector("#resetSessionBtn").addEventListener("click", resetSessionState);
-dom.stageSteps.forEach((button) => {
-  button.addEventListener("click", () => {
-    const targetStage = Number(button.dataset.stageTarget || "1");
-    setStage(targetStage);
-  });
-});
-if (dom.stagePrevBtn) {
-  dom.stagePrevBtn.addEventListener("click", () => setStage(state.currentStage - 1));
-}
-if (dom.stageNextBtn) {
-  dom.stageNextBtn.addEventListener("click", () => setStage(state.currentStage + 1));
-}
-window.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && state.roleDesignerOpen) {
-    closeRoleDesigner();
-  }
+
+const raGenerateOutline = runtimeActions.generateOutline;
+const raReviewOutline = runtimeActions.reviewOutline;
+const raApproveOutline = runtimeActions.approveOutline;
+const raQuickStart = runtimeActions.quickStart;
+const raContinueScene = runtimeActions.continueScene;
+const raStartNextEpisode = runtimeActions.startNextEpisode;
+const raCutScene = runtimeActions.cutScene;
+const raSendDirective = runtimeActions.sendDirective;
+const raRollbackScene = runtimeActions.rollbackScene;
+const raExportArtifacts = runtimeActions.exportArtifacts;
+const raPreviewCurrentState = runtimeActions.previewCurrentState;
+const raRefreshStage = runtimeActions.refreshStage;
+
+window.bindFrontendEvents({
+  state,
+  dom,
+  randomizeAll,
+  optimizeInput,
+  updateEpisodeCountDisplay,
+  updateRoundDisplay,
+  updateTimelineDisplay,
+  openRoleDesigner,
+  closeRoleDesigner,
+  addPresetRole,
+  addCustomRole,
+  handleRoleDesignerInput,
+  handleRoleDesignerChange,
+  handleRoleDesignerClick,
+  setApiPreview,
+  syncStageNav,
+  renderAllChips,
+  resetSessionState,
+  setStage,
+  raGenerateOutline,
+  raReviewOutline,
+  raApproveOutline,
+  raQuickStart,
+  raContinueScene,
+  raStartNextEpisode,
+  raCutScene,
+  raSendDirective,
+  raRollbackScene,
+  raExportArtifacts,
+  raPreviewCurrentState,
+  raRefreshStage
 });
 
 initializeDefaults();

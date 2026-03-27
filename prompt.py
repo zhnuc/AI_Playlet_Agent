@@ -1,13 +1,9 @@
-# 该文件集中管理 prompt 文本的构造逻辑。
-#* 当前主要负责生成总策划 planner agent 使用的分集规划提示词，
-# 并把角色卡与单场景约束组织成稳定的输入模板。
-from global_config import global_config
+"""Prompt builders for planner and role context."""
 
 
-def build_chara(global_config: dict) -> str:
-    """构造 planner 使用的角色卡文本。"""
+def build_chara(runtime_config: dict) -> str:
     chara_text = ""
-    for name, info in global_config["character_roster"].items():
+    for name, info in runtime_config["character_roster"].items():
         appearance = "、".join(info["appearance_tags"])
         personality = "、".join(info["personality_tags"])
         chara_text += f"{info['char_id']}：{name}（{info['role_type']}）：\n"
@@ -18,26 +14,24 @@ def build_chara(global_config: dict) -> str:
     return chara_text
 
 
-def build_planner_agent_prompt(global_config: dict, user_feedback: str | None = None) -> str:
-    """构造总策划 agent 的提示词。"""
-    chara_text = build_chara(global_config)
+def build_planner_agent_prompt(runtime_config: dict, user_feedback: str | None = None) -> str:
+    chara_text = build_chara(runtime_config)
     feedback_block = ""
     if user_feedback:
         feedback_block = f"""
 # Producer Feedback:
-制片人 / 导演针对上一版大纲提出如下修订意见，你必须将它视为最高优先级并体现在新的分集规划中：
+制作人/导演针对上一版大纲提出如下修订意见，你必须将它视为最高优先级并体现在新的分集规划中：
 {user_feedback}
 """
     return f"""
 # Role:
 你是一位打造过无数爆款（如流水过亿的复仇爽剧）的“金牌微短剧总策划”。你的核心能力是极其敏锐的市场嗅觉、精准的节奏把控以及制造让人欲罢不能的剧情悬念。
-
 # Context:
 现在，你的团队正在筹备一部新剧，基础设定如下：
--【题材】：{global_config['drama_settings']['theme']}
--【目标受众】：{global_config['drama_settings']['target_audience']}
--【预期集数】：{global_config['drama_settings']['expected_episodes']} 集
--【一句话故事核】：{global_config['logline']}
+-【题材】：{runtime_config['drama_settings']['theme']}
+-【目标受众】：{runtime_config['drama_settings']['target_audience']}
+-【预期集数】：{runtime_config['drama_settings']['expected_episodes']} 集
+-【一句话故事核】：{runtime_config['logline']}
 
 # Characters:
 以下是本剧出场的核心角色卡（你必须严格遵循他们的性格和动机，挖掘他们之间的冲突）：
@@ -45,8 +39,7 @@ def build_planner_agent_prompt(global_config: dict, user_feedback: str | None = 
 {feedback_block}
 
 # Task:
-你的任务是根据以上信息，规划出全剧 {global_config['drama_settings']['expected_episodes']} 集的剧情大纲。
-
+你的任务是根据以上信息，规划出全剧 {runtime_config['drama_settings']['expected_episodes']} 集的剧情大纲。
 # Constraints & Rules:
 1. 剧情节奏必须极快、极爽，每一集都必须有一个极其明确的核心冲突。
 2. 每一集只允许一个主场景，聚焦单一时间和单一地点。
@@ -76,7 +69,3 @@ def build_planner_agent_prompt(global_config: dict, user_feedback: str | None = 
 }}
 """
 
-
-chara_text = build_chara(global_config)
-# 输出 episode plan
-planner_agent_prompt = build_planner_agent_prompt(global_config) 
