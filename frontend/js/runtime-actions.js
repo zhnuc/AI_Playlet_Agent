@@ -12,8 +12,20 @@
       getCurrentEpisodeNumber,
       renderMessages,
       renderMonitorFeed,
-      buildConfigOverride
+      buildConfigOverride,
+      showLoading,
+      hideLoading
     } = deps;
+    let loopRunId = 0;
+
+    async function withLoading(options, runner) {
+      if (typeof showLoading === "function") showLoading(options);
+      try {
+        return await runner();
+      } finally {
+        if (typeof hideLoading === "function") hideLoading();
+      }
+    }
 
     async function request(path, options = {}) {
       const response = await fetch(path, {
@@ -56,9 +68,9 @@
         state.plannerOutput = payload.planner_output;
         state.outlineApproved = true;
         dom.sessionBadge.textContent = payload.session_id;
-        setStatus("Free session created");
+        setStatus("自由模式会话已创建");
         renderOutline();
-        setApiPreview("Created free session", payload);
+        setApiPreview("自由模式会话创建成功", payload);
         return payload.session_id;
       }
 
@@ -73,44 +85,52 @@
       state.plannerOutput = null;
       state.outlineApproved = false;
       dom.sessionBadge.textContent = payload.session_id;
-      setStatus("Planned session created");
-      setApiPreview("Created planned session", payload);
+      setStatus("大纲模式会话已创建");
+      setApiPreview("大纲模式会话创建成功", payload);
       return payload.session_id;
     }
 
     async function generateOutline() {
-      if (state.runMode === "free") {
-        await createSession(true);
-        renderOutline();
-        setStage(2, { force: true });
-        setStatus("Free mode plan is ready");
-        return;
-      }
+      return withLoading(
+        {
+          title: "正在生成大纲，请稍等几分钟",
+          hint: "模型会先规划分集冲突，再写角色 directive。"
+        },
+        async () => {
+          if (state.runMode === "free") {
+            await createSession(true);
+            renderOutline();
+            setStage(2, { force: true });
+            setStatus("自由模式规划已就绪");
+            return;
+          }
 
-      const sessionId = await createSession(true);
-      const payload = await request(`/sessions/${sessionId}/outline/generate`, {
-        method: "POST"
-      });
-      const episodes = payload?.planner_output?.episodes;
-      if (!Array.isArray(episodes) || episodes.length === 0) {
-        state.plannerOutput = null;
-        state.outlineApproved = false;
-        renderOutline();
-        setStatus("Outline generation failed");
-        setApiPreview("Outline generation failed", payload);
-        return;
-      }
-      state.plannerOutput = payload.planner_output;
-      state.outlineApproved = false;
-      renderOutline();
-      setStage(2, { force: true });
-      setStatus("Outline generated");
-      setApiPreview("Planner output generated", payload);
+          const sessionId = await createSession(true);
+          const payload = await request(`/sessions/${sessionId}/outline/generate`, {
+            method: "POST"
+          });
+          const episodes = payload?.planner_output?.episodes;
+          if (!Array.isArray(episodes) || episodes.length === 0) {
+            state.plannerOutput = null;
+            state.outlineApproved = false;
+            renderOutline();
+            setStatus("大纲生成失败");
+            setApiPreview("大纲生成失败", payload);
+            return;
+          }
+          state.plannerOutput = payload.planner_output;
+          state.outlineApproved = false;
+          renderOutline();
+          setStage(2, { force: true });
+          setStatus("大纲已生成");
+          setApiPreview("大纲生成完成", payload);
+        }
+      );
     }
 
     async function reviewOutline() {
       if (state.runMode === "free") {
-        setStatus("Free mode does not require review");
+        setStatus("自由模式无需审稿");
         return;
       }
       if (!state.sessionId) {
@@ -118,7 +138,7 @@
       }
       const feedback = dom.outlineFeedback.value.trim();
       if (!feedback) {
-        setStatus("Feedback is required");
+        setStatus("请先填写审稿意见");
         return;
       }
       const payload = await request(`/sessions/${state.sessionId}/outline/review`, {
@@ -128,14 +148,14 @@
       state.plannerOutput = payload.planner_output;
       state.outlineApproved = false;
       renderOutline();
-      setStatus("Outline reviewed");
-      setApiPreview("Outline review completed", payload);
+      setStatus("审稿意见已提交");
+      setApiPreview("大纲审稿完成", payload);
     }
 
     async function approveOutline() {
       if (state.runMode === "free") {
         state.outlineApproved = true;
-        setStatus("Free mode is auto-approved");
+        setStatus("自由模式默认已通过");
         return;
       }
       if (!state.sessionId || !state.plannerOutput) {
@@ -147,9 +167,9 @@
       state.plannerOutput = payload.planner_output;
       state.outlineApproved = true;
       renderOutline();
-      setStage(2, { force: true });
-      setStatus("Outline approved");
-      setApiPreview("Outline approved", payload);
+      setStage(3, { force: true });
+      setStatus("大纲审核通过");
+      setApiPreview("大纲审核通过", payload);
     }
 
     async function startEpisode() {
@@ -172,16 +192,17 @@
       });
 
       applySnapshot(payload);
-      setStatus("Episode runtime started");
-      setApiPreview("Episode runtime created", payload);
+      setStatus("第一集推演已启动");
+      setApiPreview("推演运行时已创建", payload);
     }
 
-    async function stepEpisode() {
+    async function stepEpisode(runId) {
       const payload = await request(`/sessions/${state.sessionId}/episode/step`, {
         method: "POST"
       });
+      if (runId !== loopRunId) return;
       applySnapshot(payload.snapshot);
-      setApiPreview("Episode advanced one step", payload);
+      setApiPreview("推演前进一步", payload);
 
       const stepStatus = payload.step_result?.status;
       if (state.snapshot?.result) {
@@ -195,26 +216,31 @@
           key_error: "key_error"
         };
         const resolved = statusMap[state.snapshot.result.status] || state.snapshot.result.status;
-        setStatus(`Episode ended: ${resolved}`);
+        setStatus(`本集结束：${resolved}`);
         state.shouldContinue = false;
       } else if (stepStatus === "paused") {
-        setStatus("Episode paused");
+        setStatus("当前已暂停");
         state.shouldContinue = false;
       } else {
-        setStatus(`Running: turn ${state.snapshot?.current_turn ?? 0}`);
+        setStatus(`推演进行中：第 ${state.snapshot?.current_turn ?? 0} 轮`);
       }
     }
 
-    async function driveEpisodeLoop() {
+    async function driveEpisodeLoop(runId) {
       if (state.isLooping || !state.sessionId) {
         return;
       }
 
       state.isLooping = true;
       try {
-        while (state.shouldContinue) {
-          await stepEpisode();
-          if (!state.shouldContinue || state.snapshot?.result || state.snapshot?.episode_status === "paused") {
+        while (state.shouldContinue && runId === loopRunId) {
+          await stepEpisode(runId);
+          if (
+            runId !== loopRunId
+            || !state.shouldContinue
+            || state.snapshot?.result
+            || state.snapshot?.episode_status === "paused"
+          ) {
             break;
           }
           await new Promise((resolve) => setTimeout(resolve, 400));
@@ -229,11 +255,12 @@
         setStage(3, { force: true });
         await startEpisode();
         state.shouldContinue = true;
-        await driveEpisodeLoop();
+        loopRunId += 1;
+        await driveEpisodeLoop(loopRunId);
       } catch (error) {
         state.shouldContinue = false;
-        setStatus("Quick start failed");
-        setApiPreview("Quick start failed", { error: error.message });
+        setStatus("快速启动失败");
+        setApiPreview("快速启动失败", { error: error.message });
       }
     }
 
@@ -251,27 +278,28 @@
             body: { command: "resume" }
           });
           applySnapshot(payload.snapshot);
-          setApiPreview("Episode runtime resumed", payload);
+          setApiPreview("推演已恢复", payload);
         }
 
         state.shouldContinue = true;
-        await driveEpisodeLoop();
+        loopRunId += 1;
+        await driveEpisodeLoop(loopRunId);
       } catch (error) {
-        setStatus("Continue failed");
-        setApiPreview("Continue failed", { error: error.message });
+        setStatus("继续推演失败");
+        setApiPreview("继续推演失败", { error: error.message });
       }
     }
 
     async function startNextEpisode() {
       try {
         if (!state.sessionId || !state.snapshot || !state.plannerOutput?.episodes?.length) {
-          setStatus("Start current episode first");
+          setStatus("请先启动当前集");
           return;
         }
         const currentEpisode = getCurrentEpisodeNumber(state.snapshot);
         const nextEpisode = currentEpisode + 1;
         if (nextEpisode > state.plannerOutput.episodes.length) {
-          setStatus("Already at final episode");
+          setStatus("已经是最后一集");
           return;
         }
 
@@ -280,42 +308,53 @@
           body: { episode: nextEpisode }
         });
         applySnapshot(payload);
-        setStatus(`Started episode ${nextEpisode}`);
-        setApiPreview("Switched to next episode", payload);
+        setStatus(`已切换到第 ${nextEpisode} 集`);
+        setApiPreview("已切换到下一集", payload);
         state.shouldContinue = true;
-        await driveEpisodeLoop();
+        loopRunId += 1;
+        await driveEpisodeLoop(loopRunId);
       } catch (error) {
-        setApiPreview("Start next episode failed", { error: error.message });
+        setApiPreview("启动下一集失败", { error: error.message });
       }
     }
 
     async function cutScene() {
       if (!state.sessionId || !state.snapshot) {
-        setStatus("No active runtime");
+        setStatus("当前没有可暂停的推演");
         return;
       }
+      state.shouldContinue = false;
+      loopRunId += 1;
+      setStatus("暂停中，正在等待当前步骤收束");
       try {
-        state.shouldContinue = false;
-        const payload = await request(`/sessions/${state.sessionId}/director`, {
-          method: "POST",
-          body: { command: "pause" }
-        });
-        applySnapshot(payload.snapshot);
-        setStatus("Episode paused");
-        setApiPreview("Pause command completed", payload);
+        await withLoading(
+          {
+            title: "正在暂停推演",
+            hint: "马上暂停，不再继续自动输出。"
+          },
+          async () => {
+            const payload = await request(`/sessions/${state.sessionId}/director`, {
+              method: "POST",
+              body: { command: "pause" }
+            });
+            applySnapshot(payload.snapshot);
+            setStatus("已暂停");
+            setApiPreview("暂停指令执行完成", payload);
+          }
+        );
       } catch (error) {
-        setApiPreview("Pause command failed", { error: error.message });
+        setApiPreview("暂停失败", { error: error.message });
       }
     }
 
     async function sendDirective() {
       if (!state.sessionId || !state.snapshot) {
-        setStatus("Start runtime first");
+        setStatus("请先启动推演");
         return;
       }
       const instruction = dom.directorCommand.value.trim();
       if (!instruction) {
-        setStatus("Directive is required");
+        setStatus("请输入导演指令");
         return;
       }
       try {
@@ -328,38 +367,53 @@
           }
         });
         applySnapshot(payload.snapshot);
-        setStatus("Directive injected");
-        setApiPreview("Directive injected", payload);
+        setStatus("导演指令已注入");
+        setApiPreview("导演指令注入完成", payload);
       } catch (error) {
-        setApiPreview("Directive injection failed", { error: error.message });
+        setApiPreview("导演指令注入失败", { error: error.message });
       }
     }
 
     async function rollbackScene() {
       if (!state.sessionId || !state.snapshot) {
-        setStatus("No runtime to rollback");
+        setStatus("当前没有可回档的推演");
         return;
       }
       try {
         state.shouldContinue = false;
-        const payload = await request(`/sessions/${state.sessionId}/director`, {
-          method: "POST",
-          body: {
-            command: "rollback",
-            step: Number(dom.timelineSlider.value)
+        loopRunId += 1;
+        const currentTurn = Number(state.snapshot?.current_turn || 0);
+        let targetStep = Number(dom.timelineSlider.value);
+        if (state.snapshot?.result && targetStep >= currentTurn && currentTurn > 0) {
+          targetStep = currentTurn - 1;
+          dom.timelineSlider.value = String(targetStep);
+        }
+        await withLoading(
+          {
+            title: "正在执行回档",
+            hint: "请稍等，系统正在恢复到你选择的历史步。"
+          },
+          async () => {
+            const payload = await request(`/sessions/${state.sessionId}/director`, {
+              method: "POST",
+              body: {
+                command: "rollback",
+                step: targetStep
+              }
+            });
+            applySnapshot(payload.snapshot);
+            setStatus(`已回档到第 ${targetStep} 步，可继续推演`);
+            setApiPreview("回档执行完成", payload);
           }
-        });
-        applySnapshot(payload.snapshot);
-        setStatus(`Rolled back to step ${dom.timelineSlider.value}`);
-        setApiPreview("Rollback completed", payload);
+        );
       } catch (error) {
-        setApiPreview("Rollback failed", { error: error.message });
+        setApiPreview("回档失败", { error: error.message });
       }
     }
 
     async function exportArtifacts() {
       if (!state.sessionId) {
-        setStatus("No session");
+        setStatus("当前没有会话");
         return;
       }
       try {
@@ -369,10 +423,10 @@
         state.hasExportedArtifacts = true;
         setStage(4, { force: true });
         dom.scriptOutput.textContent = payload.script || "No script output.";
-        setApiPreview("Artifacts exported", payload.shotlist || payload);
-        setStatus("Export completed");
+        setApiPreview("导出完成", payload.shotlist || payload);
+        setStatus("导出已完成");
       } catch (error) {
-        setApiPreview("Export failed", { error: error.message });
+        setApiPreview("导出失败", { error: error.message });
       }
     }
 

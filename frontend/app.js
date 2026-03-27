@@ -26,7 +26,8 @@ const state = {
   showInitialRoleHints: true,
   currentStage: 1,
   hasExportedArtifacts: false,
-  hasTriggeredStartDemo: false
+  hasTriggeredStartDemo: false,
+  loadingDepth: 0
 };
 
 const dom = {
@@ -50,6 +51,8 @@ const dom = {
   monitorFeed: document.querySelector("#monitorFeed"),
   turnBadge: document.querySelector("#turnBadge"),
   promptPreview: document.querySelector("#promptPreview"),
+  backgroundSetupCard: document.querySelector("#backgroundSetupCard"),
+  roleSetupCard: document.querySelector("#roleSetupCard"),
   plotInput: document.querySelector("#plotInput"),
   sceneInput: document.querySelector("#sceneInput"),
   roleEntryHint: document.querySelector("#roleEntryHint"),
@@ -78,7 +81,11 @@ const dom = {
   scriptOutput: document.querySelector("#scriptOutput"),
   apiSnippet: document.querySelector("#apiSnippet"),
   apiHint: document.querySelector("#apiHint"),
-  messageTemplate: document.querySelector("#messageTemplate")
+  messageTemplate: document.querySelector("#messageTemplate"),
+  loadingMask: document.querySelector("#loadingMask"),
+  loadingTitle: document.querySelector("#loadingTitle"),
+  loadingHint: document.querySelector("#loadingHint"),
+  loadingTips: document.querySelector("#loadingTips")
 };
 
 const stagePanels = {
@@ -624,6 +631,27 @@ function sample(list) {
 }
 
 function randomizeAll() {
+  const roleSetupVisible = dom.roleSetupCard && !dom.roleSetupCard.classList.contains("hidden");
+  if (roleSetupVisible) {
+    if (!state.roleDrafts.length) {
+      initializeRoleDrafts();
+    }
+    state.roleDrafts = state.roleDrafts.map((role) => {
+      const group = roleTemplateCatalog[role.templateGroup] ? role.templateGroup : "support";
+      const list = roleTemplateCatalog[group] || [];
+      if (!list.length) return role;
+      const picked = sample(list);
+      return createRoleDraft(group, picked.id, {
+        id: role.id,
+        isStarter: role.isStarter,
+        role_position: role.role_position
+      });
+    });
+    refreshRoleUI();
+    setStatus("已随机刷新角色卡");
+    return;
+  }
+
   const genre = sample(options.genre);
   const scene = sample(options.scene);
   state.selectedGenre = genre;
@@ -633,16 +661,11 @@ function randomizeAll() {
   dom.plotInput.value = `围绕“${genre}”展开，开场直接爆发公开冲突，并在结尾抛出能钩住下一场的关键证据。`;
   dom.promptPreview.textContent = promptMap[genre] || promptMap[options.genre[0]];
   renderAllChips();
+  setStatus("已随机选择基础设定");
 }
 
 function optimizeInput() {
-  const customTag = dom.customTagInput.value.trim();
-  if (!customTag) {
-    dom.promptPreview.textContent = "给我一个附加标签，我就会把它压缩成更好喂给 planner 的剧情提示。";
-    return;
-  }
-
-  dom.promptPreview.textContent = `输入优化建议：把“${customTag}”写进冲突触发器，而不是背景说明。优先让它在第 1 集第 1 场直接发生。`;
+  randomizeAll();
 }
 
 function updateEpisodeCountDisplay() {
@@ -660,6 +683,38 @@ function updateTimelineDisplay() {
 function setStatus(text) {
   dom.statusBadge.textContent = text;
   dom.streamStatus.textContent = text;
+}
+
+function showLoading(options = {}) {
+  if (!dom.loadingMask) return;
+  state.loadingDepth += 1;
+  const title = String(options.title || "正在处理，请稍等几分钟");
+  const hint = String(options.hint || "大纲生成和导演指令需要调用模型，通常会有一点等待时间。");
+  const tips = Array.isArray(options.tips) && options.tips.length
+    ? options.tips
+    : [
+        "你可以先看下角色卡，回来结果会自动更新。",
+        "通常几十秒到几分钟完成，取决于当前任务复杂度。",
+        "如果等待较久，可先暂停当前操作再试一次。"
+      ];
+
+  if (dom.loadingTitle) dom.loadingTitle.textContent = title;
+  if (dom.loadingHint) dom.loadingHint.textContent = hint;
+  if (dom.loadingTips) {
+    const tip = tips[Math.floor(Math.random() * tips.length)];
+    dom.loadingTips.textContent = tip;
+  }
+
+  dom.loadingMask.classList.remove("hidden");
+  dom.loadingMask.setAttribute("aria-busy", "true");
+}
+
+function hideLoading() {
+  if (!dom.loadingMask) return;
+  state.loadingDepth = Math.max(0, state.loadingDepth - 1);
+  if (state.loadingDepth > 0) return;
+  dom.loadingMask.classList.add("hidden");
+  dom.loadingMask.setAttribute("aria-busy", "false");
 }
 
 function syncRuntimeStatus() {
@@ -849,7 +904,7 @@ function addPresetRole() {
 }
 
 function addCustomRole() {
-  state.roleDrafts = [...state.roleDrafts, createCustomRoleDraft()];
+  state.roleDrafts = [createCustomRoleDraft(), ...state.roleDrafts];
   refreshRoleUI();
 }
 
@@ -1164,7 +1219,9 @@ const runtimeActions = window.createRuntimeActions({
   getCurrentEpisodeNumber,
   renderMessages,
   renderMonitorFeed,
-  buildConfigOverride
+  buildConfigOverride,
+  showLoading,
+  hideLoading
 });
 
 const raGenerateOutline = runtimeActions.generateOutline;

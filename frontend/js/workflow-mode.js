@@ -69,7 +69,7 @@
         personality_tags: normalizeTagList(item.personality_tags, ["待补充"]),
         catchphrase: String(item.catchphrase || "").trim()
       }));
-      state.roleDrafts = [...state.roleDrafts, ...next];
+      state.roleDrafts = [...next, ...state.roleDrafts];
       refreshRoleUI();
       return next.length;
     }

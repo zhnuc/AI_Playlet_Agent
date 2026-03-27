@@ -172,6 +172,9 @@
             <p class="panel-kicker">阶段 2</p>
             <h2>剧本结构树</h2>
           </div>
+          <div class="panel-heading-actions">
+            <button class="warning-btn small" id="generateOutlineBtn" type="button">生成大纲</button>
+          </div>
         </div>
 
         <aside class="outline-tree">
@@ -195,7 +198,6 @@
           </label>
 
           <div class="action-row">
-            <button class="ghost-btn" id="generateOutlineBtn" type="button">生成大纲</button>
             <button class="ghost-btn" id="reviewOutlineBtn" type="button">提交审稿意见</button>
             <button class="primary-btn" id="approveOutlineBtn" type="button">审核通过</button>
           </div>
@@ -218,7 +220,7 @@
             <span>角色演绎区</span>
             <div class="toolbar-actions">
               <span id="turnBadge">第 0 句</span>
-              <button class="primary-btn small" id="startDemo" type="button">开始一轮推演</button>
+              <button class="primary-btn small" id="startDemo" type="button">开始第一轮推演</button>
               <button class="ghost-btn small hidden" id="nextEpisodeBtn" type="button">开始下一集</button>
               <button class="ghost-btn small" id="refreshStageBtn" type="button">刷新快照</button>
             </div>
@@ -369,6 +371,16 @@
       <div class="action-row">
         <button class="primary-btn" id="confirmOneLineBtn" type="button">生成并填充</button>
       </div>
+    </section>
+  </div>
+
+  <div class="loading-shell hidden" id="loadingMask" aria-live="polite" aria-busy="false">
+    <div class="loading-backdrop"></div>
+    <section class="loading-card" role="status" aria-atomic="true">
+      <div class="loading-spin-ring" aria-hidden="true"></div>
+      <h3 id="loadingTitle">正在处理，请稍等几分钟</h3>
+      <p id="loadingHint">大纲生成和导演指令需要调用模型，通常会有一点等待时间。</p>
+      <p class="loading-tipline" id="loadingTips">你可以先看下角色卡，回来结果会自动更新。</p>
     </section>
   </div>
 
