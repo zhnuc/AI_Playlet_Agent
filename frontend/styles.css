@@ -131,13 +131,6 @@ select:focus {
   margin-top: 0.2rem;
 }
 
-.hero-text {
-  max-width: 60ch;
-  color: var(--muted);
-  line-height: 1.7;
-  margin: 1rem 0 1.5rem;
-}
-
 .hero-actions,
 .action-row,
 .toolbar-actions {
@@ -145,6 +138,10 @@ select:focus {
   gap: 12px;
   flex-wrap: wrap;
   align-items: center;
+}
+
+.hero-actions {
+  margin-top: 10px;
 }
 
 .hero-metrics {
@@ -194,11 +191,89 @@ select:focus {
   word-break: break-all;
 }
 
+.stage-toolbar {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.stage-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.72rem 0.86rem;
+  background: rgba(255, 249, 240, 0.74);
+  color: var(--muted);
+  font-weight: 600;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease, border-color 160ms ease;
+}
+
+.stage-step-index {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+  background: rgba(31, 95, 132, 0.14);
+  color: var(--secondary);
+}
+
+.stage-step-label {
+  font-size: 0.92rem;
+  letter-spacing: 0.01em;
+}
+
+.stage-step.active {
+  color: #fff7f2;
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%);
+  box-shadow: 0 10px 24px rgba(196, 82, 45, 0.2);
+}
+
+.stage-step.active .stage-step-index {
+  background: rgba(255, 247, 242, 0.24);
+  color: #fff7f2;
+}
+
+.stage-step.done {
+  border-color: rgba(45, 125, 86, 0.35);
+  color: var(--success);
+}
+
+.stage-step.done .stage-step-index {
+  background: rgba(45, 125, 86, 0.18);
+  color: var(--success);
+}
+
+.stage-step.locked {
+  opacity: 0.7;
+}
+
 .workspace-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 18px;
   margin-top: 18px;
+}
+
+.workspace-grid.stage-focus {
+  grid-template-columns: 1fr;
+}
+
+.workspace-grid.stage-focus .panel {
+  grid-column: 1 / -1 !important;
+  align-self: stretch;
+  height: auto !important;
+}
+
+.stage-hidden {
+  display: none !important;
 }
 
 .panel {
@@ -231,6 +306,7 @@ select:focus {
   align-self: stretch;
   overflow: hidden;
   grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
 }
 
 .sandbox-panel {
@@ -403,6 +479,35 @@ select:focus {
   border-radius: var(--radius-lg);
   background: rgba(255, 249, 240, 0.74);
   border: 1px solid rgba(111, 82, 56, 0.1);
+  position: relative;
+  z-index: 2;
+}
+
+.role-composer-entry,
+.role-composer-display {
+  display: grid;
+  gap: 10px;
+  position: relative;
+  z-index: 3;
+}
+
+#openRoleDesignerBtn {
+  position: relative;
+  z-index: 4;
+  pointer-events: auto;
+}
+
+.role-entry-hint {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.role-composer-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
 }
 
 .role-composer-head {
@@ -414,11 +519,14 @@ select:focus {
 
 .role-composer-title {
   display: block;
-  color: var(--muted);
-  margin-bottom: 6px;
+  color: var(--text);
+  margin-bottom: 2px;
+  font-family: "Noto Serif SC", serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
-#roleSummary,
 #roleDesignerStats {
   margin: 0;
   color: var(--muted);
@@ -440,11 +548,70 @@ select:focus {
   background: rgba(255, 255, 255, 0.62);
 }
 
+.role-summary-preview,
+.role-template-hint,
+.role-position-note {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.role-summary-preview {
+  font-size: 0.94rem;
+}
+
+.role-template-hint,
+.role-position-note {
+  font-size: 0.85rem;
+}
+
+.main-role-empty {
+  grid-column: 1 / -1;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px dashed rgba(111, 82, 56, 0.18);
+  color: var(--muted);
+}
+
 .role-card-head {
   display: flex;
-  align-items: start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.role-card-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.role-card-title-block {
+  min-width: 0;
+  flex: 1;
+}
+
+.role-card-name {
+  font-size: 2rem;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.role-position-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.36rem 0.72rem;
+  border-radius: 999px;
+  background: rgba(31, 95, 132, 0.1);
+  color: var(--secondary);
+  font-size: 0.82rem;
+  white-space: nowrap;
 }
 
 .role-card-head h3,
@@ -469,13 +636,6 @@ select:focus {
   color: var(--accent-deep);
   font-size: 0.78rem;
   white-space: nowrap;
-}
-
-.role-card-hint {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.84rem;
-  line-height: 1.5;
 }
 
 .modal-shell {
@@ -561,6 +721,10 @@ select:focus {
 
 .danger-btn:hover {
   transform: translateY(-2px);
+}
+
+select option:disabled {
+  color: #a79a8d;
 }
 
 body.modal-open {
@@ -860,6 +1024,25 @@ input[type="range"] {
   overflow: auto;
 }
 
+.stage-footer-nav {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stage-hint {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 249, 240, 0.74);
+  color: var(--muted);
+  text-align: center;
+  flex: 1 1 auto;
+}
+
 @keyframes pulse {
   0% {
     box-shadow: 0 0 0 0 rgba(45, 125, 86, 0.45);
@@ -884,6 +1067,10 @@ input[type="range"] {
 }
 
 @media (max-width: 1220px) {
+  .stage-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .workspace-grid {
     grid-template-columns: 1fr;
   }
@@ -910,9 +1097,26 @@ input[type="range"] {
   .output-layout {
     grid-template-columns: 1fr;
   }
+
+  .role-card-name {
+    font-size: 1.6rem;
+  }
 }
 
 @media (max-width: 720px) {
+  .stage-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .stage-step {
+    justify-content: flex-start;
+  }
+
+  .stage-footer-nav {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .page-shell {
     width: min(100% - 20px, 100%);
     margin: 10px auto 24px;
@@ -928,7 +1132,13 @@ input[type="range"] {
     grid-template-columns: 1fr;
   }
 
+  .role-card-name {
+    font-size: 1.32rem;
+    white-space: normal;
+  }
+
   .role-composer-head,
+  .role-composer-entry,
   .modal-head,
   .role-designer-toolbar,
   .panel-heading,

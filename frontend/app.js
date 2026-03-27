@@ -158,11 +158,32 @@ const roleTemplateCatalog = {
   ]
 };
 
-const coreRoleSlots = [
-  { slot: "heroine", label: "女主", title: "女主角色卡", group: "heroine", defaultTemplateId: "reborn-heiress" },
-  { slot: "hero", label: "男主", title: "男主角色卡", group: "hero", defaultTemplateId: "capital-heir" },
-  { slot: "villain", label: "反派", title: "反派角色卡", group: "villain", defaultTemplateId: "false-heiress" }
+const rolePositionCatalog = [
+  { value: "male_lead_1", label: "男一号", type: "主角", priority: 1, unique: true, lockedGender: "男" },
+  { value: "female_lead_1", label: "女一号", type: "主角", priority: 2, unique: true, lockedGender: "女" },
+  { value: "chief_villain", label: "大反派", type: "反派", priority: 3, unique: true },
+  { value: "male_lead_2", label: "男二号", type: "主角", priority: 4, unique: true, lockedGender: "男" },
+  { value: "female_lead_2", label: "女二号", type: "主角", priority: 5, unique: true, lockedGender: "女" },
+  { value: "minor_villain", label: "小反派", type: "反派", priority: 6, unique: false },
+  { value: "supporting", label: "配角", type: "配角", priority: 99, unique: false }
 ];
+
+const rolePositionMap = Object.fromEntries(rolePositionCatalog.map((item) => [item.value, item]));
+
+const defaultRolePositionByGroup = {
+  heroine: "female_lead_1",
+  hero: "male_lead_1",
+  villain: "chief_villain",
+  support: "supporting"
+};
+
+const starterRoleDefinitions = [
+  { group: "heroine", templateId: "reborn-heiress", rolePosition: "female_lead_1" },
+  { group: "hero", templateId: "capital-heir", rolePosition: "male_lead_1" },
+  { group: "villain", templateId: "false-heiress", rolePosition: "chief_villain" }
+];
+
+const allRoleTemplateGroups = ["heroine", "hero", "villain", "support"];
 
 const roleGroupLabels = {
   heroine: "女主模板",
@@ -189,13 +210,21 @@ const state = {
   snapshot: null,
   shouldContinue: false,
   isLooping: false,
-  initialInspirationHeight: null,
   roleDrafts: [],
   roleCounter: 1,
-  roleDesignerOpen: false
+  roleDesignerOpen: false,
+  hasOpenedRoleDesignerOnce: false,
+  showInitialRoleHints: true,
+  currentStage: 1,
+  hasExportedArtifacts: false
 };
 
 const dom = {
+  workspaceGrid: document.querySelector(".workspace-grid"),
+  stageSteps: Array.from(document.querySelectorAll(".stage-step")),
+  stagePrevBtn: document.querySelector("#stagePrevBtn"),
+  stageNextBtn: document.querySelector("#stageNextBtn"),
+  stageHint: document.querySelector("#stageHint"),
   genreResult: document.querySelector("#genreResult"),
   runModeResult: document.querySelector("#runModeResult"),
   sceneResult: document.querySelector("#sceneResult"),
@@ -213,8 +242,9 @@ const dom = {
   promptPreview: document.querySelector("#promptPreview"),
   plotInput: document.querySelector("#plotInput"),
   sceneInput: document.querySelector("#sceneInput"),
+  roleEntryHint: document.querySelector("#roleEntryHint"),
+  roleComposerDisplay: document.querySelector("#roleComposerDisplay"),
   mainRoleCards: document.querySelector("#mainRoleCards"),
-  roleSummary: document.querySelector("#roleSummary"),
   openRoleDesignerBtn: document.querySelector("#openRoleDesignerBtn"),
   roleDesignerModal: document.querySelector("#roleDesignerModal"),
   closeRoleDesignerBtn: document.querySelector("#closeRoleDesignerBtn"),
@@ -240,6 +270,106 @@ const dom = {
   messageTemplate: document.querySelector("#messageTemplate")
 };
 
+const stagePanels = {
+  1: [".inspiration-panel"],
+  2: [".outline-panel", ".sandbox-panel"],
+  3: [".control-panel", ".monitor-panel"],
+  4: [".output-panel"]
+};
+
+const stageHints = {
+  1: "阶段 1：先完成输入配置与角色设定。",
+  2: "阶段 2：生成并确认大纲结构。",
+  3: "阶段 3：推进演绎并执行导演控制。",
+  4: "阶段 4：查看并导出台本与分镜。"
+};
+
+function isStage1Ready() {
+  return state.roleDrafts.length > 0 && Boolean(dom.plotInput.value.trim());
+}
+
+function isStage2Ready() {
+  if (state.runMode === "free") {
+    return Boolean(state.sessionId && state.plannerOutput?.episodes?.length);
+  }
+  return Boolean(state.outlineApproved);
+}
+
+function isStage3Ready() {
+  return Boolean(state.snapshot || state.hasExportedArtifacts);
+}
+
+function stageBlockReason(targetStage) {
+  if (targetStage <= 1) return "";
+  if (targetStage >= 2 && !isStage1Ready()) {
+    return "先完成阶段 1 的基础输入。";
+  }
+  if (targetStage >= 3 && !isStage2Ready()) {
+    return state.runMode === "planned"
+      ? "先完成大纲审核通过，再进入阶段 3。"
+      : "先生成 free 开场，再进入阶段 3。";
+  }
+  if (targetStage >= 4 && !isStage3Ready()) {
+    return "先完成至少一轮推演，再进入阶段 4。";
+  }
+  return "";
+}
+
+function canEnterStage(targetStage) {
+  return !stageBlockReason(targetStage);
+}
+
+function syncStagePanels() {
+  if (!dom.workspaceGrid) return;
+  dom.workspaceGrid.classList.add("stage-focus");
+  const panels = Array.from(dom.workspaceGrid.querySelectorAll(".panel"));
+  panels.forEach((panel) => panel.classList.add("stage-hidden"));
+  (stagePanels[state.currentStage] || []).forEach((selector) => {
+    const panel = dom.workspaceGrid.querySelector(selector);
+    if (panel) panel.classList.remove("stage-hidden");
+  });
+}
+
+function syncStageNav() {
+  const maxStage = 4;
+  if (dom.stageHint) {
+    dom.stageHint.textContent = stageHints[state.currentStage] || "";
+  }
+  if (dom.stagePrevBtn) {
+    dom.stagePrevBtn.disabled = state.currentStage <= 1;
+  }
+  if (dom.stageNextBtn) {
+    dom.stageNextBtn.disabled = state.currentStage >= maxStage;
+    dom.stageNextBtn.textContent = state.currentStage >= maxStage ? "已到最后阶段" : "下一步";
+  }
+
+  dom.stageSteps.forEach((button) => {
+    const target = Number(button.dataset.stageTarget || "1");
+    const active = target === state.currentStage;
+    const done = target < state.currentStage;
+    const locked = !canEnterStage(target);
+    button.classList.toggle("active", active);
+    button.classList.toggle("done", done);
+    button.classList.toggle("locked", locked);
+    button.disabled = locked;
+    button.setAttribute("aria-current", active ? "step" : "false");
+  });
+}
+
+function setStage(targetStage, options = {}) {
+  const stage = Math.min(4, Math.max(1, Number(targetStage) || 1));
+  const blockReason = stageBlockReason(stage);
+  if (blockReason && !options.force) {
+    setStatus(blockReason);
+    return false;
+  }
+  state.currentStage = stage;
+  syncStagePanels();
+  syncStageNav();
+  requestAnimationFrame(syncTopPanelHeights);
+  return true;
+}
+
 function escapeMarkup(text) {
   return String(text ?? "")
     .replaceAll("&", "&amp;")
@@ -252,6 +382,61 @@ function nextRoleId() {
   const id = `role-${state.roleCounter}`;
   state.roleCounter += 1;
   return id;
+}
+
+function getRolePositionMeta(position) {
+  return rolePositionMap[position] || rolePositionMap.supporting;
+}
+
+function inferRoleTypeFromPosition(position) {
+  return getRolePositionMeta(position).type;
+}
+
+function inferGenderFromPosition(position, gender) {
+  const meta = getRolePositionMeta(position);
+  return meta.lockedGender || gender || "未设定";
+}
+
+function normalizeRoleDraft(role) {
+  const resolvedPosition = getRolePositionMeta(role.role_position).value;
+  return {
+    ...role,
+    role_position: resolvedPosition,
+    role_type: inferRoleTypeFromPosition(resolvedPosition),
+    gender: inferGenderFromPosition(resolvedPosition, role.gender)
+  };
+}
+
+function sortRolesByImportance(roles) {
+  return [...roles].sort((left, right) => {
+    const priorityDiff = getRolePositionMeta(left.role_position).priority - getRolePositionMeta(right.role_position).priority;
+    if (priorityDiff !== 0) return priorityDiff;
+    return state.roleDrafts.findIndex((item) => item.id === left.id) - state.roleDrafts.findIndex((item) => item.id === right.id);
+  });
+}
+
+function buildRoleTemplateHint(role) {
+  const summary = buildRoleSummary(role);
+  return `${role.name} · ${getRolePositionMeta(role.role_position).label} · ${summary || "保留默认设定"}`;
+}
+
+function buildRolePositionOptions(role) {
+  const enabledOptions = [];
+  const disabledOptions = [];
+
+  rolePositionCatalog.forEach((position) => {
+    const selected = role.role_position === position.value ? " selected" : "";
+    const occupied = position.unique && state.roleDrafts.some((item) => item.id !== role.id && item.role_position === position.value);
+    const disabled = occupied && !selected ? " disabled" : "";
+    const optionHtml = `<option value="${position.value}"${selected}${disabled}>${escapeMarkup(position.label)}${occupied && !selected ? "（已占用）" : ""}</option>`;
+    if (occupied && !selected) {
+      disabledOptions.push(optionHtml);
+    } else {
+      enabledOptions.push(optionHtml);
+    }
+  });
+
+  return [...enabledOptions, ...disabledOptions].join("");
 }
 
 function cloneTemplateDraft(group, templateId) {
@@ -269,31 +454,33 @@ function cloneTemplateDraft(group, templateId) {
 }
 
 function createRoleDraft(group, templateId, overrides = {}) {
-  return {
+  return normalizeRoleDraft({
     id: overrides.id || nextRoleId(),
-    slot: overrides.slot || null,
-    isCore: Boolean(overrides.slot),
+    isStarter: Boolean(overrides.isStarter),
     ...cloneTemplateDraft(group, templateId),
-    ...overrides
-  };
+    ...overrides,
+    templateGroup: group,
+    templateId,
+    role_position: overrides.role_position || defaultRolePositionByGroup[group] || "supporting"
+  });
 }
 
 function createCustomRoleDraft() {
-  return {
+  return normalizeRoleDraft({
     id: nextRoleId(),
-    slot: null,
-    isCore: false,
+    isStarter: false,
     templateGroup: "support",
     templateId: null,
     name: `新角色${state.roleDrafts.length + 1}`,
     role_type: "配角",
+    role_position: "supporting",
     gender: "未设定",
     age: 24,
     identity: "待设定身份",
     appearance_tags: ["待补充"],
     personality_tags: ["待补充"],
     catchphrase: ""
-  };
+  });
 }
 
 function normalizeTagList(value) {
@@ -331,7 +518,15 @@ function applySummaryToRole(role, summary) {
 }
 
 function formatRoleBadge(role) {
-  const chunks = [role.role_type || "角色", role.gender || "未设定"];
+  const chunks = [getRolePositionMeta(role.role_position).label, inferRoleTypeFromPosition(role.role_position), inferGenderFromPosition(role.role_position, role.gender)];
+  if (role.age) {
+    chunks.push(`${role.age} 岁`);
+  }
+  return chunks.join(" · ");
+}
+
+function formatRoleCardBadge(role) {
+  const chunks = [inferGenderFromPosition(role.role_position, role.gender)];
   if (role.age) {
     chunks.push(`${role.age} 岁`);
   }
@@ -339,11 +534,10 @@ function formatRoleBadge(role) {
 }
 
 function initializeRoleDrafts() {
-  state.roleDrafts = coreRoleSlots.map((slot) => createRoleDraft(slot.group, slot.defaultTemplateId, { slot: slot.slot }));
-}
-
-function getRoleDraftBySlot(slotName) {
-  return state.roleDrafts.find((role) => role.slot === slotName) || null;
+  state.roleDrafts = starterRoleDefinitions.map((definition) => createRoleDraft(definition.group, definition.templateId, {
+    isStarter: true,
+    role_position: definition.rolePosition
+  }));
 }
 
 function getRoleDraftById(roleId) {
@@ -381,77 +575,77 @@ function getCurrentRoleTemplateValue(role) {
 }
 
 function renderRolePresetOptions() {
-  dom.rolePresetSelect.innerHTML = roleTemplateCatalog.support
-    .map((template) => `<option value="support:${template.id}">${escapeMarkup(template.label)}</option>`)
+  dom.rolePresetSelect.innerHTML = allRoleTemplateGroups
+    .map((group) => {
+      const optionsHtml = roleTemplateCatalog[group]
+        .map((template) => `<option value="${group}:${template.id}">${escapeMarkup(template.label)}</option>`)
+        .join("");
+      return `<optgroup label="${escapeMarkup(roleGroupLabels[group])}">${optionsHtml}</optgroup>`;
+    })
     .join("");
 }
 
 function updateRoleSummaryText() {
   const counts = state.roleDrafts.reduce(
     (acc, role) => {
-      const key = role.role_type || "配角";
+      const key = inferRoleTypeFromPosition(role.role_position);
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     },
     {}
   );
-  dom.roleSummary.textContent = `当前 ${counts["主角"] || 0} 名主角、${counts["反派"] || 0} 名反派、${counts["配角"] || 0} 名配角。主视图仅固定展示女主、男主、反派三张核心角色卡。`;
-  dom.roleDesignerStats.textContent = `已配置 ${state.roleDrafts.length} 个角色。你可以继续添加模板角色，或新增完全自定义角色。`;
+  dom.roleDesignerStats.textContent = `已配置 ${state.roleDrafts.length} 个角色。男一、女一、男二、女二和大反派各只能存在 1 位；不可选项会自动灰置并沉到列表底部。`;
 }
 
 function renderMainRoleCards() {
-  dom.mainRoleCards.innerHTML = coreRoleSlots
-    .map((slotConfig) => {
-      const role = getRoleDraftBySlot(slotConfig.slot);
-      if (!role) return "";
-      return `
-        <article class="role-card" data-role-slot="${slotConfig.slot}">
-          <div class="role-card-head">
-            <div>
-              <p class="prompt-title">${escapeMarkup(slotConfig.title)}</p>
-              <h3>${escapeMarkup(role.name)}</h3>
-            </div>
-            <span class="role-badge">${escapeMarkup(formatRoleBadge(role))}</span>
+  const visibleRoles = sortRolesByImportance(state.roleDrafts)
+    .filter((role) => getRolePositionMeta(role.role_position).priority < 99)
+    .slice(0, 3);
+
+  if (!visibleRoles.length) {
+    dom.mainRoleCards.innerHTML = '<div class="main-role-empty">当前还没有被识别为核心展示位的角色。先在角色设计器中设置男一、女一、大反派或二番位。</div>';
+    return;
+  }
+
+  dom.mainRoleCards.innerHTML = visibleRoles
+    .map((role, index) => `
+      <article class="role-card" data-role-id="${role.id}">
+        <div class="role-card-topline">
+          <p class="prompt-title">核心角色 ${index + 1}</p>
+          <span class="role-position-pill">${escapeMarkup(getRolePositionMeta(role.role_position).label)}</span>
+        </div>
+        <div class="role-card-head">
+          <div class="role-card-title-block">
+            <h3 class="role-card-name">${escapeMarkup(role.name || `角色${index + 1}`)}</h3>
           </div>
-          <label>
-            模板
-            <select data-role-slot="${slotConfig.slot}" data-field="template">
-              ${buildTemplateOptions([slotConfig.group], getCurrentRoleTemplateValue(role))}
-            </select>
-          </label>
-          <label>
-            角色名
-            <input type="text" value="${escapeMarkup(role.name)}" data-role-slot="${slotConfig.slot}" data-field="name">
-          </label>
-          <label>
-            角色速写
-            <textarea rows="4" data-role-slot="${slotConfig.slot}" data-field="summary">${escapeMarkup(buildRoleSummary(role))}</textarea>
-          </label>
-          <p class="role-card-hint">这里保留主角卡的快速编辑。完整字段和扩展角色数量请在“角色设计器”中维护。</p>
-        </article>
-      `;
-    })
+          <span class="role-badge">${escapeMarkup(formatRoleCardBadge(role))}</span>
+        </div>
+        <p class="role-summary-preview">${escapeMarkup(buildRoleSummary(role) || "还没有角色速写，请在角色设计器中补充身份、性格与口头禅。")}</p>
+      </article>
+    `)
     .join("");
 }
 
 function renderRoleDesignerList() {
   dom.roleDesignerList.innerHTML = state.roleDrafts
     .map((role) => {
-      const allowedGroups = role.slot ? [coreRoleSlots.find((item) => item.slot === role.slot).group] : ["support", "heroine", "hero", "villain"];
-      const templateOptions = `${buildTemplateOptions(allowedGroups, getCurrentRoleTemplateValue(role))}<option value="custom"${role.templateId ? "" : " selected"}>保留当前自定义设定</option>`;
-      const removeAction = role.isCore
-        ? `<span class="role-badge">固定展示位</span>`
-        : `<button class="danger-btn small" type="button" data-action="delete-role" data-role-id="${role.id}">删除角色</button>`;
+      const templateOptions = `${buildTemplateOptions(allRoleTemplateGroups, getCurrentRoleTemplateValue(role))}<option value="custom"${role.templateId ? "" : " selected"}>保留当前自定义设定</option>`;
+      const positionMeta = getRolePositionMeta(role.role_position);
+      const lockedGender = Boolean(positionMeta.lockedGender);
+      const templateHint = state.showInitialRoleHints && role.isStarter
+        ? `<p class="role-template-hint">默认模板参考：${escapeMarkup(buildRoleTemplateHint(role))}。如果现在直接关闭设计器，这套默认信息会作为真实角色保留。</p>`
+        : "";
       return `
         <article class="role-editor" data-role-id="${role.id}">
           <div class="role-editor-head">
             <div>
-              <p class="prompt-title">${escapeMarkup(role.isCore ? "核心角色" : "扩展角色")}</p>
+              <p class="prompt-title">${escapeMarkup(positionMeta.label)}</p>
               <h3>${escapeMarkup(role.name)}</h3>
               <p>${escapeMarkup(formatRoleBadge(role))}</p>
             </div>
-            ${removeAction}
+            <button class="danger-btn small" type="button" data-action="delete-role" data-role-id="${role.id}">删除角色</button>
           </div>
+          ${templateHint}
           <div class="role-editor-grid">
             <label>
               预设模板
@@ -465,18 +659,17 @@ function renderRoleDesignerList() {
             </label>
             <label>
               角色定位
-              <select data-role-id="${role.id}" data-field="role_type">
-                <option value="主角"${role.role_type === "主角" ? " selected" : ""}>主角</option>
-                <option value="反派"${role.role_type === "反派" ? " selected" : ""}>反派</option>
-                <option value="配角"${role.role_type === "配角" ? " selected" : ""}>配角</option>
+              <select data-role-id="${role.id}" data-field="role_position">
+                ${buildRolePositionOptions(role)}
               </select>
+              <p class="role-position-note">男一、女一、男二、女二和大反派只能存在 1 位。已占用的席位会自动灰置并移动到下方。</p>
             </label>
             <label>
               性别
-              <select data-role-id="${role.id}" data-field="gender">
-                <option value="女"${role.gender === "女" ? " selected" : ""}>女</option>
-                <option value="男"${role.gender === "男" ? " selected" : ""}>男</option>
-                <option value="未设定"${role.gender === "未设定" ? " selected" : ""}>未设定</option>
+              <select data-role-id="${role.id}" data-field="gender"${lockedGender ? " disabled" : ""}>
+                <option value="女"${inferGenderFromPosition(role.role_position, role.gender) === "女" ? " selected" : ""}>女</option>
+                <option value="男"${inferGenderFromPosition(role.role_position, role.gender) === "男" ? " selected" : ""}>男</option>
+                <option value="未设定"${inferGenderFromPosition(role.role_position, role.gender) === "未设定" ? " selected" : ""}>未设定</option>
               </select>
             </label>
             <label>
@@ -508,28 +701,37 @@ function renderRoleDesignerList() {
 
 function openRoleDesigner() {
   state.roleDesignerOpen = true;
+  state.hasOpenedRoleDesignerOnce = true;
   dom.roleDesignerModal.classList.remove("hidden");
   dom.roleDesignerModal.setAttribute("aria-hidden", "false");
   document.body.classList.add("modal-open");
+  dom.roleComposerDisplay.classList.remove("hidden");
+  renderMainRoleCards();
   renderRoleDesignerList();
+  requestAnimationFrame(syncTopPanelHeights);
 }
 
 function closeRoleDesigner() {
   state.roleDesignerOpen = false;
+  state.showInitialRoleHints = false;
   dom.roleDesignerModal.classList.add("hidden");
   dom.roleDesignerModal.setAttribute("aria-hidden", "true");
   document.body.classList.remove("modal-open");
+  requestAnimationFrame(syncTopPanelHeights);
 }
 
 function refreshRoleUI(options = {}) {
   updateRoleSummaryText();
   syncRoleOptions(getCurrentRoleNames());
+  dom.roleEntryHint.classList.toggle("hidden", state.hasOpenedRoleDesignerOnce);
+  dom.roleComposerDisplay.classList.toggle("hidden", !state.hasOpenedRoleDesignerOnce);
   if (!options.skipMainCards) {
     renderMainRoleCards();
   }
   if (state.roleDesignerOpen && !options.skipDesignerList) {
     renderRoleDesignerList();
   }
+  requestAnimationFrame(syncTopPanelHeights);
 }
 
 function syncTopPanelHeights() {
@@ -537,29 +739,11 @@ function syncTopPanelHeights() {
   const outlinePanel = dom.outlinePanel;
   if (!inspirationPanel || !outlinePanel) return;
 
-  const fixedHeight = state.initialInspirationHeight;
-  const fallbackHeight = inspirationPanel.offsetHeight;
-  const targetHeight = fixedHeight && fixedHeight > 0 ? fixedHeight : fallbackHeight;
+  const targetHeight = inspirationPanel.offsetHeight;
   if (targetHeight > 0) {
-    outlinePanel.style.maxHeight = `${targetHeight}px`;
+    outlinePanel.style.height = `${targetHeight}px`;
   }
 }
-
-function captureInitialTopPanelHeight() {
-  if (state.initialInspirationHeight) return;
-  const inspirationPanel = dom.inspirationPanel;
-  if (!inspirationPanel) return;
-
-  requestAnimationFrame(() => {
-    if (state.initialInspirationHeight) return;
-    const initialHeight = inspirationPanel.offsetHeight;
-    if (initialHeight > 0) {
-      state.initialInspirationHeight = initialHeight;
-      syncTopPanelHeights();
-    }
-  });
-}
-
 function initializeDefaults() {
   dom.genreResult.textContent = state.selectedGenre;
   dom.runModeResult.textContent = "大纲驱动";
@@ -571,17 +755,18 @@ function initializeDefaults() {
   dom.scriptOutput.textContent = "还没有导出结果。先生成大纲并跑完一轮推演。";
   initializeRoleDrafts();
   renderRolePresetOptions();
+  dom.roleComposerDisplay.classList.toggle("hidden", !state.hasOpenedRoleDesignerOnce);
   renderMainRoleCards();
   updateEpisodeCountDisplay();
   updateRoundDisplay();
   updateRoleSummaryText();
   syncRoleOptions(getCurrentRoleNames());
   renderAllChips();
+  syncStageNav();
   renderOutline();
   renderMessages();
   renderMonitorFeed();
-  captureInitialTopPanelHeight();
-  syncTopPanelHeights();
+  requestAnimationFrame(syncTopPanelHeights);
 }
 
 function renderChipGroup(field, values, selectedValue) {
@@ -608,6 +793,7 @@ function renderChipGroup(field, values, selectedValue) {
         dom.modeBadge.textContent = labelText;
       }
       renderAllChips();
+      syncStageNav();
     });
     container.appendChild(chip);
   });
@@ -683,11 +869,13 @@ function buildCharacterRoster() {
 
     const appearance = normalizeTagList(role.appearance_tags);
     const personality = normalizeTagList(role.personality_tags);
+    const resolvedPosition = getRolePositionMeta(role.role_position);
     roster[finalName] = {
       char_id: index + 1,
       name: finalName,
-      role_type: role.role_type || "配角",
-      gender: role.gender || "未设定",
+      role_type: inferRoleTypeFromPosition(role.role_position),
+      role_position: resolvedPosition.label,
+      gender: inferGenderFromPosition(role.role_position, role.gender),
       age: Number(role.age) || 0,
       identity: String(role.identity || "待设定身份").trim() || "待设定身份",
       appearance_tags: appearance.length ? appearance : ["待补充"],
@@ -746,63 +934,13 @@ async function request(path, options = {}) {
   return payload;
 }
 
-function handleMainRoleCardChange(event) {
-  const target = event.target;
-  const slotName = target.dataset.roleSlot;
-  if (!slotName) return;
-
-  const role = getRoleDraftBySlot(slotName);
-  if (!role) return;
-
-  if (target.dataset.field === "template") {
-    const [group, templateId] = String(target.value).split(":");
-    const nextDraft = createRoleDraft(group, templateId, {
-      id: role.id,
-      slot: role.slot
-    });
-    replaceRoleDraft(role.id, nextDraft);
-    refreshRoleUI();
-    return;
-  }
-}
-
-function handleMainRoleCardInput(event) {
-  const target = event.target;
-  const slotName = target.dataset.roleSlot;
-  if (!slotName) return;
-
-  const role = getRoleDraftBySlot(slotName);
-  if (!role) return;
-
-  if (target.dataset.field === "name") {
-    updateRoleDraft(role.id, (current) => ({ ...current, name: target.value }));
-    updateRoleSummaryText();
-    syncRoleOptions(getCurrentRoleNames());
-    const roleCard = target.closest(".role-card");
-    if (roleCard) {
-      const title = roleCard.querySelector("h3");
-      if (title) title.textContent = target.value || slotName;
-    }
-    return;
-  }
-
-  if (target.dataset.field === "summary") {
-    updateRoleDraft(role.id, (current) => applySummaryToRole(current, target.value));
-    const badge = target.closest(".role-card")?.querySelector(".role-badge");
-    const nextRole = getRoleDraftBySlot(slotName);
-    if (badge && nextRole) {
-      badge.textContent = formatRoleBadge(nextRole);
-    }
-  }
-}
-
 function handleRoleDesignerInput(event) {
   const target = event.target;
   const roleId = target.dataset.roleId;
   if (!roleId) return;
 
   const field = target.dataset.field;
-  if (!field || field === "template") return;
+  if (!field || field === "template" || field === "role_position" || field === "gender") return;
 
   updateRoleDraft(roleId, (current) => {
     const next = { ...current };
@@ -813,16 +951,11 @@ function handleRoleDesignerInput(event) {
     } else {
       next[field] = target.value;
     }
-    return next;
+    return normalizeRoleDraft(next);
   });
 
-  updateRoleSummaryText();
-  syncRoleOptions(getCurrentRoleNames());
-
   const updatedRole = getRoleDraftById(roleId);
-  if (updatedRole?.slot) {
-    renderMainRoleCards();
-  }
+  refreshRoleUI({ skipDesignerList: true });
 
   const roleEditor = target.closest(".role-editor");
   if (roleEditor && updatedRole) {
@@ -836,11 +969,21 @@ function handleRoleDesignerInput(event) {
 function handleRoleDesignerChange(event) {
   const target = event.target;
   const roleId = target.dataset.roleId;
-  if (!roleId || target.dataset.field !== "template") return;
+  if (!roleId) return;
+
+  const field = target.dataset.field;
+
+  if (field === "role_position" || field === "gender") {
+    updateRoleDraft(roleId, (current) => normalizeRoleDraft({ ...current, [field]: target.value }));
+    refreshRoleUI();
+    return;
+  }
+
+  if (field !== "template") return;
 
   if (target.value === "custom") {
-    updateRoleDraft(roleId, (current) => ({ ...current, templateId: null }));
-    updateRoleSummaryText();
+    updateRoleDraft(roleId, (current) => normalizeRoleDraft({ ...current, templateId: null }));
+    refreshRoleUI({ skipDesignerList: true });
     return;
   }
 
@@ -849,7 +992,8 @@ function handleRoleDesignerChange(event) {
   if (!current) return;
   const nextDraft = createRoleDraft(group, templateId, {
     id: current.id,
-    slot: current.slot
+    isStarter: current.isStarter,
+    role_position: current.role_position
   });
   replaceRoleDraft(roleId, nextDraft);
   refreshRoleUI();
@@ -876,6 +1020,7 @@ function addCustomRole() {
 
 function syncRoleOptions(roleNames) {
   const resolvedRoles = roleNames?.length ? roleNames : getCurrentRoleNames();
+  const currentValue = dom.targetRole.value;
   dom.targetRole.innerHTML = "";
 
   const sceneOption = document.createElement("option");
@@ -889,6 +1034,8 @@ function syncRoleOptions(roleNames) {
     option.textContent = name;
     dom.targetRole.appendChild(option);
   });
+
+  dom.targetRole.value = resolvedRoles.includes(currentValue) ? currentValue : "";
 }
 
 function renderOutline() {
@@ -1136,6 +1283,7 @@ function applySnapshot(snapshot) {
   renderMessages();
   renderMonitorFeed();
   updateNextEpisodeButton();
+  syncStageNav();
 }
 
 function resetSessionState() {
@@ -1145,6 +1293,7 @@ function resetSessionState() {
   state.snapshot = null;
   state.shouldContinue = false;
   state.isLooping = false;
+  state.hasExportedArtifacts = false;
   dom.sessionBadge.textContent = "未创建";
   setStatus("待机中");
   dom.outlineStatus.textContent = "还没有可用大纲";
@@ -1157,6 +1306,7 @@ function resetSessionState() {
   dom.timelineSlider.max = "0";
   dom.timelineSlider.value = "0";
   updateTimelineDisplay();
+  setStage(1, { force: true });
   dom.turnBadge.textContent = "第 0 句";
 }
 
@@ -1207,6 +1357,7 @@ async function generateOutline() {
   if (state.runMode === "free") {
     await createSession(true);
     renderOutline();
+    setStage(2, { force: true });
     setStatus("free 模式已生成最小 episode plan");
     return;
   }
@@ -1227,6 +1378,7 @@ async function generateOutline() {
   state.plannerOutput = payload.planner_output;
   state.outlineApproved = false;
   renderOutline();
+  setStage(2, { force: true });
   setStatus("大纲已生成，等待审核");
   setApiPreview("planner_output 已生成。", payload);
 }
@@ -1270,6 +1422,7 @@ async function approveOutline() {
   state.plannerOutput = payload.planner_output;
   state.outlineApproved = true;
   renderOutline();
+  setStage(3, { force: true });
   setStatus("大纲已审核通过");
   setApiPreview("大纲已审核通过。", payload);
 }
@@ -1348,6 +1501,7 @@ async function driveEpisodeLoop() {
 
 async function quickStart() {
   try {
+    setStage(3, { force: true });
     await startEpisode();
     state.shouldContinue = true;
     await driveEpisodeLoop();
@@ -1360,6 +1514,7 @@ async function quickStart() {
 
 async function continueScene() {
   try {
+    setStage(3, { force: true });
     if (!state.sessionId || !state.snapshot) {
       await quickStart();
       return;
@@ -1484,6 +1639,8 @@ async function exportArtifacts() {
     const payload = await request(`/sessions/${state.sessionId}/export`, {
       method: "POST"
     });
+    state.hasExportedArtifacts = true;
+    setStage(4, { force: true });
     dom.scriptOutput.textContent = payload.script || "没有 script 输出。";
     setApiPreview("导出 artifacts 成功。", payload.shotlist || payload);
     setStatus("已导出台本与分镜");
@@ -1518,9 +1675,15 @@ document.querySelector("#optimizeInput").addEventListener("click", optimizeInput
 document.querySelector("#episodeCount").addEventListener("input", updateEpisodeCountDisplay);
 document.querySelector("#roundLimit").addEventListener("input", updateRoundDisplay);
 document.querySelector("#timelineSlider").addEventListener("input", updateTimelineDisplay);
-dom.mainRoleCards.addEventListener("change", handleMainRoleCardChange);
-dom.mainRoleCards.addEventListener("input", handleMainRoleCardInput);
 dom.openRoleDesignerBtn.addEventListener("click", openRoleDesigner);
+document.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const trigger = target.closest("#openRoleDesignerBtn");
+  if (!trigger) return;
+  event.preventDefault();
+  openRoleDesigner();
+});
 dom.closeRoleDesignerBtn.addEventListener("click", closeRoleDesigner);
 dom.roleDesignerModal.addEventListener("click", (event) => {
   if (event.target instanceof HTMLElement && event.target.dataset.closeRoleModal === "true") {
@@ -1537,6 +1700,7 @@ document.querySelector("#reviewOutlineBtn").addEventListener("click", () => revi
 document.querySelector("#approveOutlineBtn").addEventListener("click", () => approveOutline().catch((error) => setApiPreview("审核通过失败。", { error: error.message })));
 document.querySelector("#buildFreePlanBtn").addEventListener("click", () => {
   state.runMode = "free";
+  syncStageNav();
   dom.runModeResult.textContent = "自由开场";
   dom.modeBadge.textContent = "自由开场";
   renderAllChips();
@@ -1552,6 +1716,18 @@ document.querySelector("#formatScript").addEventListener("click", exportArtifact
 document.querySelector("#previewStateBtn").addEventListener("click", previewCurrentState);
 document.querySelector("#refreshStageBtn").addEventListener("click", refreshStage);
 document.querySelector("#resetSessionBtn").addEventListener("click", resetSessionState);
+dom.stageSteps.forEach((button) => {
+  button.addEventListener("click", () => {
+    const targetStage = Number(button.dataset.stageTarget || "1");
+    setStage(targetStage);
+  });
+});
+if (dom.stagePrevBtn) {
+  dom.stagePrevBtn.addEventListener("click", () => setStage(state.currentStage - 1));
+}
+if (dom.stageNextBtn) {
+  dom.stageNextBtn.addEventListener("click", () => setStage(state.currentStage + 1));
+}
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && state.roleDesignerOpen) {
     closeRoleDesigner();
@@ -1561,4 +1737,4 @@ window.addEventListener("keydown", (event) => {
 initializeDefaults();
 resetSessionState();
 window.addEventListener("resize", syncTopPanelHeights);
-window.addEventListener("load", captureInitialTopPanelHeight);
+window.addEventListener("load", syncTopPanelHeights);

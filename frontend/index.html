@@ -15,9 +15,6 @@
       <div class="hero-copy">
         <p class="eyebrow">AI Playlet Agent</p>
         <h1>短剧创作指挥台</h1>
-        <p class="hero-text">
-          这一版已经不只是视觉稿。它会直接连接当前 FastAPI 服务，支持创建创作 session、生成并审阅大纲、逐轮推进角色演绎、注入导演指令，以及导出台本与 shotlist。
-        </p>
         <div class="hero-actions">
           <button class="ghost-btn" id="resetSessionBtn" type="button">重置会话</button>
         </div>
@@ -38,8 +35,27 @@
       </div>
     </header>
 
+    <nav class="stage-toolbar" aria-label="workflow stages">
+      <button class="stage-step active" type="button" data-stage-target="1">
+        <span class="stage-step-index">1</span>
+        <span class="stage-step-label">阶段 1</span>
+      </button>
+      <button class="stage-step" type="button" data-stage-target="2">
+        <span class="stage-step-index">2</span>
+        <span class="stage-step-label">阶段 2</span>
+      </button>
+      <button class="stage-step" type="button" data-stage-target="3">
+        <span class="stage-step-index">3</span>
+        <span class="stage-step-label">阶段 3</span>
+      </button>
+      <button class="stage-step" type="button" data-stage-target="4">
+        <span class="stage-step-index">4</span>
+        <span class="stage-step-label">阶段 4</span>
+      </button>
+    </nav>
+
     <main class="workspace-grid">
-      <section class="panel inspiration-panel">
+      <section class="panel inspiration-panel" data-stage="1">
         <div class="panel-heading">
           <div>
             <p class="panel-kicker">阶段 1</p>
@@ -86,14 +102,19 @@
             <input id="sceneInput" type="text" placeholder="例如：总裁办公室 / 夜 / 内">
           </label>
           <section class="role-composer">
-            <div class="role-composer-head">
-              <div>
-                <label class="role-composer-title">核心角色卡</label>
-                <p id="roleSummary">当前展示女主、男主、反派三张角色卡。你可以在角色设计器里继续扩展主角和配角数量。</p>
-              </div>
+            <div class="role-composer-entry">
               <button class="ghost-btn small" id="openRoleDesignerBtn" type="button">打开角色设计器</button>
+              <p class="role-entry-hint" id="roleEntryHint">先在设计器里确认角色，系统会按重要性自动挑选最多 3 位核心角色展示。</p>
             </div>
-            <div class="main-role-grid" id="mainRoleCards"></div>
+            <div class="role-composer-display hidden" id="roleComposerDisplay">
+              <div class="role-composer-head">
+                <div>
+                  <label class="role-composer-title">核心角色卡</label>
+                </div>
+              </div>
+              <div class="main-role-grid" id="mainRoleCards"></div>
+              <p class="role-composer-hint">核心角色展示由角色定位自动决定，完整编辑请在“角色设计器”中进行。</p>
+            </div>
           </section>
           <label>
             创作附加标签
@@ -120,7 +141,7 @@
         </div>
       </section>
 
-      <section class="panel outline-panel">
+      <section class="panel outline-panel" data-stage="2">
         <div class="panel-heading">
           <div>
             <p class="panel-kicker">阶段 2-A</p>
@@ -165,7 +186,7 @@
         </div>
       </section>
 
-      <section class="panel sandbox-panel">
+      <section class="panel sandbox-panel" data-stage="2">
         <div class="panel-heading">
           <div>
             <p class="panel-kicker">阶段 2-B</p>
@@ -188,7 +209,7 @@
         </div>
       </section>
 
-      <section class="panel control-panel">
+      <section class="panel control-panel" data-stage="3">
         <div class="panel-heading">
           <div>
             <p class="panel-kicker">阶段 3</p>
@@ -233,7 +254,7 @@
 
       </section>
 
-      <section class="panel monitor-panel">
+      <section class="panel monitor-panel" data-stage="3">
         <div class="panel-heading">
           <div>
             <p class="panel-kicker">阶段 3-B</p>
@@ -246,7 +267,7 @@
         </div>
       </section>
 
-      <section class="panel output-panel">
+      <section class="panel output-panel" data-stage="4">
         <div class="panel-heading">
           <div>
             <p class="panel-kicker">阶段 4</p>
@@ -271,6 +292,12 @@
         </div>
       </section>
     </main>
+
+    <footer class="stage-footer-nav">
+      <button class="ghost-btn" id="stagePrevBtn" type="button">上一步</button>
+      <p class="stage-hint" id="stageHint">阶段 1：先完成输入配置与角色设定。</p>
+      <button class="primary-btn" id="stageNextBtn" type="button">下一步</button>
+    </footer>
   </div>
 
   <template id="messageTemplate">
@@ -294,7 +321,7 @@
 
       <div class="role-designer-toolbar">
         <label>
-          配角模板
+          角色模板
           <select id="rolePresetSelect"></select>
         </label>
         <div class="action-row">
