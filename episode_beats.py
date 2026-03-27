@@ -9,6 +9,7 @@ from story_state import (
     BEAT_STATUS_PENDING,
     BeatState,
     EpisodeBeat,
+    RunMode,
     RuntimeState,
 )
 
@@ -170,10 +171,12 @@ def build_controller_instruction(
     return None
 
 
-def can_end_current_episode(runtime_state: RuntimeState, min_turns: int = 4) -> bool:
+def can_end_current_episode(runtime_state: RuntimeState, min_turns: int = 4, run_mode: RunMode = "planned") -> bool:
     """Only allow natural ending after the runtime has reached the closing beat."""
     if runtime_state.story.current_turn < min_turns:
         return False
     if not runtime_state.story.event_log:
         return False
+    if run_mode == "free":
+        return True
     return is_last_beat(runtime_state)

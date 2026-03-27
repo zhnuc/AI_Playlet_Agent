@@ -68,8 +68,7 @@
         age: Number(item.age || 20),
         identity: String(item.identity || "待设定身份").trim() || "待设定身份",
         appearance_tags: normalizeTagList(item.appearance_tags, ["待补充"]),
-        personality_tags: normalizeTagList(item.personality_tags, ["待补充"]),
-        catchphrase: String(item.catchphrase || "").trim()
+        personality_tags: normalizeTagList(item.personality_tags, ["待补充"])
       }));
       state.roleDrafts = [...next, ...state.roleDrafts];
       refreshRoleUI();
@@ -172,8 +171,7 @@
           age: 20,
           identity: value.slice(0, 80),
           appearance_tags: ["待补充"],
-          personality_tags: ["待补充"],
-          catchphrase: ""
+          personality_tags: ["待补充"]
         }
       ]);
     }

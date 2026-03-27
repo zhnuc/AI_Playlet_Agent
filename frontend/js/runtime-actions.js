@@ -271,16 +271,16 @@
         await withLoading(
           {
             title: "正在启动第一轮推演",
-            hint: "系统会初始化本集状态并推进多轮角色演绎。"
+            hint: "正在初始化本集运行时，完成后将自动开始对话。"
           },
           async () => {
             setStage(3, { force: true });
             await startEpisode();
-            state.shouldContinue = true;
-            loopRunId += 1;
-            await driveEpisodeLoop(loopRunId);
           }
         );
+        state.shouldContinue = true;
+        loopRunId += 1;
+        await driveEpisodeLoop(loopRunId);
       } catch (error) {
         state.shouldContinue = false;
         setStatus("快速启动失败");
@@ -290,19 +290,19 @@
 
     async function continueScene() {
       try {
-        await withLoading(
-          {
-            title: "正在继续推演",
-            hint: "系统会从当前状态继续推进，直到暂停或本集结束。"
-          },
-          async () => {
-            setStage(3, { force: true });
-            if (!state.sessionId || !state.snapshot) {
-              await quickStart();
-              return;
-            }
+        setStage(3, { force: true });
+        if (!state.sessionId || !state.snapshot) {
+          await quickStart();
+          return;
+        }
 
-            if (state.snapshot.episode_status === "paused") {
+        if (state.snapshot.episode_status === "paused") {
+          await withLoading(
+            {
+              title: "正在恢复推演",
+              hint: "正在恢复运行状态，完成后继续生成对话。"
+            },
+            async () => {
               const payload = await request(`/sessions/${state.sessionId}/director`, {
                 method: "POST",
                 body: { command: "resume" }
@@ -310,12 +310,12 @@
               applySnapshot(payload.snapshot);
               setApiPreview("推演已恢复", payload);
             }
+          );
+        }
 
-            state.shouldContinue = true;
-            loopRunId += 1;
-            await driveEpisodeLoop(loopRunId);
-          }
-        );
+        state.shouldContinue = true;
+        loopRunId += 1;
+        await driveEpisodeLoop(loopRunId);
       } catch (error) {
         setStatus("继续推演失败");
         setApiPreview("继续推演失败", { error: error.message });
@@ -324,23 +324,23 @@
 
     async function startNextEpisode() {
       try {
+        if (!state.sessionId || !state.snapshot || !state.plannerOutput?.episodes?.length) {
+          setStatus("请先启动当前集");
+          return;
+        }
+        const currentEpisode = getCurrentEpisodeNumber(state.snapshot);
+        const nextEpisode = currentEpisode + 1;
+        if (nextEpisode > state.plannerOutput.episodes.length) {
+          setStatus("已经是最后一集");
+          return;
+        }
+
         await withLoading(
           {
             title: "正在切换到下一集",
-            hint: "系统正在装载下一集计划并启动推演。"
+            hint: "正在创建下一集运行时，完成后自动开始对话。"
           },
           async () => {
-            if (!state.sessionId || !state.snapshot || !state.plannerOutput?.episodes?.length) {
-              setStatus("请先启动当前集");
-              return;
-            }
-            const currentEpisode = getCurrentEpisodeNumber(state.snapshot);
-            const nextEpisode = currentEpisode + 1;
-            if (nextEpisode > state.plannerOutput.episodes.length) {
-              setStatus("已经是最后一集");
-              return;
-            }
-
             const payload = await request(`/sessions/${state.sessionId}/episode/start`, {
               method: "POST",
               body: { episode: nextEpisode }
@@ -348,11 +348,11 @@
             applySnapshot(payload);
             setStatus(`已切换到第 ${nextEpisode} 集`);
             setApiPreview("已切换到下一集", payload);
-            state.shouldContinue = true;
-            loopRunId += 1;
-            await driveEpisodeLoop(loopRunId);
           }
         );
+        state.shouldContinue = true;
+        loopRunId += 1;
+        await driveEpisodeLoop(loopRunId);
       } catch (error) {
         setApiPreview("启动下一集失败", { error: error.message });
       }

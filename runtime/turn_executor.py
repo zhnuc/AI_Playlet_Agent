@@ -26,11 +26,13 @@ def execute_next_turn(session: Any) -> dict[str, Any]:
         and session.current_speaker != session.runtime_state.interaction.initiator
     )
     scene_instruction, role_instruction, monitor_instruction = session._clear_one_shot_instructions(session.current_speaker)
-    controller_instruction = build_controller_instruction(
-        session.runtime_state,
-        soft_turn_limit=session.soft_turn_limit,
-        hard_turn_limit=session.hard_turn_limit,
-    )
+    controller_instruction = None
+    if session.run_mode != "free":
+        controller_instruction = build_controller_instruction(
+            session.runtime_state,
+            soft_turn_limit=session.soft_turn_limit,
+            hard_turn_limit=session.hard_turn_limit,
+        )
     turn_result = generate_role_turn_with_route_retry(
         session.current_speaker,
         session.runtime_state,
@@ -97,9 +99,10 @@ def execute_next_turn(session: Any) -> dict[str, Any]:
 
     committed_events = commit_turn_result(session.runtime_state, session.current_speaker, turn_output)
     extra_events: list[Any] = []
-    maybe_advance_beat(session.runtime_state, session.soft_turn_limit)
+    if session.run_mode != "free":
+        maybe_advance_beat(session.runtime_state, session.soft_turn_limit)
 
-    if proposed_next_speakers == [END_SIGNAL] and can_end_current_episode(session.runtime_state):
+    if proposed_next_speakers == [END_SIGNAL] and can_end_current_episode(session.runtime_state, run_mode=session.run_mode):
         append_turn_log(
             session.log_path,
             runtime_state=session.runtime_state,

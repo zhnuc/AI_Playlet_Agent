@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from time import perf_counter
 from typing import Any
@@ -16,6 +17,53 @@ from playlet_service import PlayletService, build_default_agents
 
 service = PlayletService()
 frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
+env_file = Path(__file__).resolve().parent.parent / ".env"
+
+
+def _read_env_file_kv() -> dict[str, str]:
+    if not env_file.exists():
+        return {}
+    data: dict[str, str] = {}
+    for raw_line in env_file.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        data[key.strip()] = value.strip()
+    return data
+
+
+def _get_config_status() -> dict[str, Any]:
+    env_exists = env_file.exists()
+    file_kv = _read_env_file_kv()
+    base_url = (file_kv.get("base_url") or os.getenv("base_url") or "").strip()
+    api_key = (file_kv.get("api_key") or os.getenv("api_key") or "").strip()
+    model = (file_kv.get("model") or os.getenv("model") or "").strip()
+    missing_fields: list[str] = []
+    if not base_url:
+        missing_fields.append("base_url")
+    if not api_key:
+        missing_fields.append("api_key")
+    if not model:
+        missing_fields.append("model")
+    return {
+        "env_exists": env_exists,
+        "base_url_set": bool(base_url),
+        "api_key_set": bool(api_key),
+        "model_set": bool(model),
+        "missing_fields": missing_fields,
+        "needs_setup": (not env_exists) or bool(missing_fields),
+    }
+
+
+def _write_env_config(base_url: str, api_key: str, model: str) -> None:
+    env_file.write_text(
+        f"base_url={base_url}\napi_key={api_key}\nmodel={model}\n",
+        encoding="utf-8",
+    )
+    os.environ["base_url"] = base_url
+    os.environ["api_key"] = api_key
+    os.environ["model"] = model
 
 
 def create_app() -> FastAPI:
@@ -44,6 +92,20 @@ def create_app() -> FastAPI:
     @app.get("/health")
     def health():
         return {"status": "ok"}
+
+    @app.get("/config/status")
+    def config_status():
+        return _get_config_status()
+
+    @app.post("/config/save")
+    def save_config(payload: dict[str, Any]):
+        base_url = str(payload.get("base_url", "")).strip()
+        api_key = str(payload.get("api_key", "")).strip()
+        model = str(payload.get("model", "")).strip()
+        if not base_url or not api_key or not model:
+            raise HTTPException(status_code=400, detail="base_url, api_key, model are required")
+        _write_env_config(base_url, api_key, model)
+        return {"ok": True, "config": _get_config_status()}
 
     def _build_agents():
         try:

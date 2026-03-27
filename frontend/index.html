@@ -383,6 +383,34 @@
     </section>
   </div>
 
+  <div class="modal-shell hidden" id="configSetupModal" aria-hidden="true">
+    <div class="modal-backdrop"></div>
+    <section class="modal-card one-line-modal" role="dialog" aria-modal="true" aria-labelledby="configSetupTitle">
+      <div class="modal-head">
+        <div>
+          <p class="panel-kicker">首次配置</p>
+          <h2 id="configSetupTitle">请先填写模型配置</h2>
+          <p id="configSetupHint">检测到缺少 .env 或关键字段（base_url / api_key / model）。</p>
+        </div>
+      </div>
+      <label>
+        API Base URL
+        <input id="configBaseUrlInput" type="text" placeholder="https://api.example.com/v1">
+      </label>
+      <label>
+        API Key
+        <input id="configApiKeyInput" type="text" placeholder="sk-...">
+      </label>
+      <label>
+        Model Name
+        <input id="configModelInput" type="text" placeholder="gpt-4o-mini / deepseek-chat ...">
+      </label>
+      <div class="action-row">
+        <button class="primary-btn" id="saveConfigBtn" type="button">保存并继续</button>
+      </div>
+    </section>
+  </div>
+
   <script src="./js/config.js"></script>
   <script src="./js/runtime-actions.js"></script>
   <script src="./js/bind-events.js"></script>

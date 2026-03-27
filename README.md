@@ -175,3 +175,37 @@ python cli.py free-demo --config your_runtime_config.json
 如果你从旧分支迁移，请优先确认：
 - 使用的是最新后端进程（新增路由需重启服务）
 - 前端资源已刷新（避免旧 JS 缓存）
+
+---
+
+## Update Notes (2026-03)
+
+### 1) Startup API config check (new)
+
+- Frontend now checks config on startup via `GET /config/status`.
+- If `.env` is missing, or any required key is missing (`base_url`, `api_key`, `model`), UI shows a blocking setup modal.
+- User can submit URL / API key / model in the modal.
+- Frontend calls `POST /config/save` to persist values to `.env`.
+
+New backend endpoints:
+
+- `GET /config/status`
+  - Returns:
+    - `env_exists`
+    - `base_url_set`
+    - `api_key_set`
+    - `model_set`
+    - `missing_fields`
+    - `needs_setup`
+- `POST /config/save`
+  - Body:
+    - `base_url` (string)
+    - `api_key` (string)
+    - `model` (string)
+  - Saves to repo-root `.env` and updates process env vars.
+
+### 2) Role field update
+
+- Frontend role editor removed `catchphrase` field.
+- Role payload sent from frontend no longer includes `catchphrase`.
+- One-line role generation fallback path in frontend also no longer uses `catchphrase`.

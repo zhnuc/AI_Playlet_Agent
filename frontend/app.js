@@ -86,7 +86,13 @@ const dom = {
   loadingMask: document.querySelector("#loadingMask"),
   loadingTitle: document.querySelector("#loadingTitle"),
   loadingHint: document.querySelector("#loadingHint"),
-  loadingTips: document.querySelector("#loadingTips")
+  loadingTips: document.querySelector("#loadingTips"),
+  configSetupModal: document.querySelector("#configSetupModal"),
+  configSetupHint: document.querySelector("#configSetupHint"),
+  configBaseUrlInput: document.querySelector("#configBaseUrlInput"),
+  configApiKeyInput: document.querySelector("#configApiKeyInput"),
+  configModelInput: document.querySelector("#configModelInput"),
+  saveConfigBtn: document.querySelector("#saveConfigBtn")
 };
 
 const stagePanels = {
@@ -301,8 +307,7 @@ function createCustomRoleDraft() {
     age: 24,
     identity: "待设定身份",
     appearance_tags: ["待补充"],
-    personality_tags: ["待补充"],
-    catchphrase: ""
+    personality_tags: ["待补充"]
   });
 }
 
@@ -318,7 +323,7 @@ function normalizeTagList(value) {
 
 function buildRoleSummary(role) {
   const personality = normalizeTagList(role.personality_tags).slice(0, 3);
-  return [role.identity, ...personality, role.catchphrase].filter(Boolean).join("，");
+  return [role.identity, ...personality].filter(Boolean).join("，");
 }
 
 function applySummaryToRole(role, summary) {
@@ -331,11 +336,8 @@ function applySummaryToRole(role, summary) {
   if (parts[0]) {
     next.identity = parts[0];
   }
-  if (parts.length >= 3) {
-    next.personality_tags = parts.slice(1, parts.length - 1).slice(0, 3);
-    next.catchphrase = parts[parts.length - 1];
-  } else if (parts.length === 2) {
-    next.catchphrase = parts[1];
+  if (parts.length >= 2) {
+    next.personality_tags = parts.slice(1).slice(0, 3);
   }
   return next;
 }
@@ -440,7 +442,7 @@ function renderMainRoleCards() {
           </div>
           <span class="role-badge">${escapeMarkup(formatRoleCardBadge(role))}</span>
         </div>
-        <p class="role-summary-preview">${escapeMarkup(buildRoleSummary(role) || "还没有角色速写，请在角色设计器中补充身份、性格与口头禅。")}</p>
+        <p class="role-summary-preview">${escapeMarkup(buildRoleSummary(role) || "还没有角色速写，请在角色设计器中补充身份与性格。")}</p>
       </article>
     `)
     .join("");
@@ -507,10 +509,6 @@ function renderRoleDesignerList() {
             <label class="role-editor-span">
               性格标签
               <input type="text" value="${escapeMarkup(normalizeTagList(role.personality_tags).join("，"))}" data-role-id="${role.id}" data-field="personality_tags">
-            </label>
-            <label class="role-editor-span">
-              口头禅
-              <textarea rows="2" data-role-id="${role.id}" data-field="catchphrase">${escapeMarkup(role.catchphrase)}</textarea>
             </label>
           </div>
         </article>
@@ -715,6 +713,88 @@ function hideLoading() {
   dom.loadingMask.setAttribute("aria-busy", "false");
 }
 
+function openConfigSetupModal(hintText) {
+  if (!dom.configSetupModal) return;
+  if (dom.configSetupHint && hintText) {
+    dom.configSetupHint.textContent = hintText;
+  }
+  dom.configSetupModal.classList.remove("hidden");
+  dom.configSetupModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+}
+
+function closeConfigSetupModal() {
+  if (!dom.configSetupModal) return;
+  dom.configSetupModal.classList.add("hidden");
+  dom.configSetupModal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("modal-open");
+}
+
+async function requestJson(path, options = {}) {
+  const response = await fetch(path, {
+    method: options.method || "GET",
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined
+  });
+  const text = await response.text();
+  const payload = text ? JSON.parse(text) : {};
+  if (!response.ok) {
+    const detail = payload?.detail || response.statusText || "Request failed";
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+  }
+  return payload;
+}
+
+async function ensureApiConfig() {
+  try {
+    const status = await requestJson("/config/status");
+    if (!status?.needs_setup) {
+      closeConfigSetupModal();
+      return;
+    }
+    openConfigSetupModal("检测到缺少 .env 或关键字段（base_url / api_key / model），请先完成配置。");
+    setStatus("请先完成 API 配置");
+  } catch (error) {
+    openConfigSetupModal(`无法读取配置状态：${error.message}`);
+    setStatus("配置检查失败，请手动填写后继续");
+  }
+}
+
+async function saveApiConfigFromModal() {
+  const base_url = String(dom.configBaseUrlInput?.value || "").trim();
+  const api_key = String(dom.configApiKeyInput?.value || "").trim();
+  const model = String(dom.configModelInput?.value || "").trim();
+  if (!base_url || !api_key || !model) {
+    if (dom.configSetupHint) {
+      dom.configSetupHint.textContent = "请完整填写 base_url、api_key、model。";
+    }
+    return;
+  }
+  if (dom.saveConfigBtn) dom.saveConfigBtn.disabled = true;
+  showLoading({
+    title: "正在保存配置",
+    hint: "保存后会立即生效，无需重启页面。"
+  });
+  try {
+    await requestJson("/config/save", {
+      method: "POST",
+      body: { base_url, api_key, model }
+    });
+    closeConfigSetupModal();
+    setStatus("API 配置已保存");
+  } catch (error) {
+    if (dom.configSetupHint) {
+      dom.configSetupHint.textContent = `保存失败：${error.message}`;
+    }
+  } finally {
+    if (dom.saveConfigBtn) dom.saveConfigBtn.disabled = false;
+    hideLoading();
+  }
+}
+
 function syncRuntimeStatus() {
   if (!state.sessionId) {
     setStatus("待机中");
@@ -812,8 +892,7 @@ function buildCharacterRoster() {
       age: Number(role.age) || 0,
       identity: String(role.identity || "待设定身份").trim() || "待设定身份",
       appearance_tags: appearance.length ? appearance : ["待补充"],
-      personality_tags: personality.length ? personality : ["待补充"],
-      catchphrase: String(role.catchphrase || "暂未设定口头禅。")
+      personality_tags: personality.length ? personality : ["待补充"]
     };
   });
 
@@ -1315,7 +1394,14 @@ if (typeof window.initWorkflowMode === "function") {
   });
 }
 
+if (dom.saveConfigBtn) {
+  dom.saveConfigBtn.addEventListener("click", () => {
+    saveApiConfigFromModal().catch(() => {});
+  });
+}
+
 initializeDefaults();
 resetSessionState();
+ensureApiConfig().catch(() => {});
 window.addEventListener("resize", syncTopPanelHeights);
 window.addEventListener("load", syncTopPanelHeights);

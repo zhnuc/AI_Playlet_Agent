@@ -37,6 +37,7 @@ from planner_review import PlannerReviewState, approve_planner_outline, revise_p
 from prompt import build_planner_agent_prompt
 from scheduler import END_SIGNAL, extract_next_speakers, resolve_next_speaker, resolve_next_speakers
 from story_state import (
+    BEAT_STATUS_COMPLETED,
     INTERACTION_MODE_PENDING_REPLIES,
     InteractionState,
     RoleMemory,
@@ -135,7 +136,11 @@ class EpisodeSession:
             _, self.hard_turn_limit = derive_turn_limits(self.soft_turn_limit)
         if not self.current_speaker:
             self.current_speaker = resolve_episode_start_speaker(self.episode_plan, self.valid_roles)
-        if not self.runtime_state.beat_state.beats:
+        if self.run_mode == "free":
+            self.runtime_state.beat_state.beats = []
+            self.runtime_state.beat_state.active_index = 0
+            self.runtime_state.beat_state.status = BEAT_STATUS_COMPLETED
+        elif not self.runtime_state.beat_state.beats:
             self.runtime_state.beat_state = create_beat_state(self.episode_plan)
         if self.log_path is None:
             self.log_path = initialize_episode_log(self.runtime_state, self.episode_plan, log_dir=self.log_dir)
