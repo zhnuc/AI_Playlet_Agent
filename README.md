@@ -209,3 +209,6 @@ New backend endpoints:
 - Frontend role editor removed `catchphrase` field.
 - Role payload sent from frontend no longer includes `catchphrase`.
 - One-line role generation fallback path in frontend also no longer uses `catchphrase`.
+
+## B站视频链接
+https://www.bilibili.com/video/BV1qhXMBUEVe/?vd_source=a4083c62e73f82af07b9cd9ab7979e05
