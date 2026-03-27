@@ -19,7 +19,7 @@
       <div class="hero-metrics">
         <article>
           <span>运行模式</span>
-          <strong id="modeBadge">大纲驱动</strong>
+          <strong id="modeBadge">未选择</strong>
         </article>
         <article>
           <span>Session</span>
@@ -31,6 +31,23 @@
         </article>
       </div>
     </header>
+
+    <section class="mode-select" id="modeSelectPanel">
+      <div class="mode-select-head">
+        <p class="panel-kicker">首页</p>
+        <h2>选择创作模式</h2>
+      </div>
+      <div class="mode-card-grid">
+        <button class="mode-card" id="modeFreeCard" type="button">
+          <h3>自由开场</h3>
+          <p>跳过大纲审批，直接进入场景化角色推演。</p>
+        </button>
+        <button class="mode-card" id="modePlannedCard" type="button">
+          <h3>大纲驱动</h3>
+          <p>先生成分集大纲，再按集推进推演与导演控制。</p>
+        </button>
+      </div>
+    </section>
 
     <nav class="stage-toolbar" aria-label="workflow stages">
       <button class="stage-step active" type="button" data-stage-target="1">
@@ -56,91 +73,103 @@
         <div class="panel-heading">
           <div>
             <p class="panel-kicker">阶段 1</p>
-            <h2>灵感输入与模式设定</h2>
+            <h2>基础设定</h2>
           </div>
           <div class="panel-heading-actions">
             <button class="icon-btn" id="randomizeAll" type="button" aria-label="随机刷新灵感">✦</button>
           </div>
         </div>
 
-        <div class="slot-machine">
-          <div class="slot-reel">
-            <span class="slot-label">题材</span>
-            <strong id="genreResult">重生复仇</strong>
-          </div>
-          <div class="slot-reel">
-            <span class="slot-label">模式</span>
-            <strong id="runModeResult">大纲驱动</strong>
-          </div>
-          <div class="slot-reel">
-            <span class="slot-label">开场场景</span>
-            <strong id="sceneResult">总裁办公室</strong>
-          </div>
-        </div>
-
-        <div class="chip-block">
-          <label>题材风格</label>
-          <div class="chip-list" data-field="genre"></div>
-        </div>
-
-        <div class="chip-block">
-          <label>运行模式</label>
-          <div class="chip-list" data-field="runMode"></div>
-        </div>
-
-        <div class="field-grid">
-          <label>
-            故事核 / Logline
-            <textarea id="plotInput" rows="4" placeholder="例如：女主重生回签离婚协议当天，决定设局反杀。"></textarea>
-          </label>
-          <label>
-            开场场景
-            <input id="sceneInput" type="text" placeholder="例如：总裁办公室 / 夜 / 内">
-          </label>
-          <section class="role-composer">
-            <div class="role-composer-entry">
-              <button class="ghost-btn small" id="openRoleDesignerBtn" type="button">打开角色设计器</button>
-              <p class="role-entry-hint" id="roleEntryHint">先在设计器里确认角色，系统会按重要性自动挑选最多 3 位核心角色展示。</p>
+        <article class="setup-card" id="backgroundSetupCard">
+          <div class="setup-card-head">
+            <h3>故事背景卡片</h3>
+            <div class="action-row">
+              <button class="ghost-btn small" id="oneLineBackgroundBtn" type="button">一句话生成</button>
+              <button class="ghost-btn small" id="optimizeInput" type="button">随机选择</button>
             </div>
-            <div class="role-composer-display hidden" id="roleComposerDisplay">
+          </div>
+
+          <div class="slot-machine">
+            <div class="slot-reel">
+              <span class="slot-label">题材</span>
+              <strong id="genreResult">重生复仇</strong>
+            </div>
+            <div class="slot-reel">
+              <span class="slot-label">模式</span>
+              <strong id="runModeResult">待选择</strong>
+            </div>
+            <div class="slot-reel">
+              <span class="slot-label">开场场景</span>
+              <strong id="sceneResult">总裁办公室</strong>
+            </div>
+          </div>
+
+          <div class="chip-block">
+            <label>题材风格</label>
+            <div class="chip-list" data-field="genre"></div>
+            <div class="chip-list hidden" data-field="runMode"></div>
+          </div>
+
+          <div class="field-grid">
+            <label>
+              故事核 / Logline
+              <textarea id="plotInput" rows="3" placeholder="例如：真千金重回签离婚协议当晚，决定反杀布局。"></textarea>
+            </label>
+            <label>
+              开场场景
+              <input id="sceneInput" type="text" placeholder="例如：董事会会议室 / 医院走廊 / 直播间">
+            </label>
+          </div>
+
+          <div class="control-group">
+            <label for="episodeCount">规划集数（数字）</label>
+            <input id="episodeCount" type="number" min="1" max="20" value="5">
+            <div class="range-meta">
+              <span>最少 1 集</span>
+              <strong id="episodeCountValue">5 集</strong>
+              <span>最多 20 集</span>
+            </div>
+          </div>
+
+          <div class="action-row">
+            <button class="primary-btn" id="confirmBackgroundBtn" type="button">确定背景并进入角色设置</button>
+          </div>
+        </article>
+
+        <article class="setup-card hidden" id="roleSetupCard">
+          <div class="setup-card-head">
+            <h3>角色选择卡片</h3>
+            <div class="action-row">
+              <button class="ghost-btn small" id="oneLineRoleBtn" type="button">一键生成角色</button>
+              <button class="ghost-btn small" id="openRoleDesignerBtn" type="button">打开角色设计器</button>
+            </div>
+          </div>
+
+          <section class="role-composer">
+            <div class="role-composer-display" id="roleComposerDisplay">
               <div class="role-composer-head">
                 <div>
                   <label class="role-composer-title">核心角色卡</label>
                 </div>
               </div>
               <div class="main-role-grid" id="mainRoleCards"></div>
-              <p class="role-composer-hint">核心角色展示由角色定位自动决定，完整编辑请在“角色设计器”中进行。</p>
+              <p class="role-composer-hint" id="roleEntryHint">点击“打开角色设计器”可编辑角色名、定位、身份、性格等字段。</p>
             </div>
           </section>
-          <label>
-            创作附加标签
-            <input id="customTagInput" type="text" placeholder="例如：直播翻车、录音笔、股权争夺、假结婚">
-          </label>
-        </div>
 
-        <div class="control-group">
-          <label for="episodeCount">规划集数</label>
-          <input id="episodeCount" type="range" min="1" max="8" value="5">
-          <div class="range-meta">
-            <span>1 集</span>
-            <strong id="episodeCountValue">5 集</strong>
-            <span>8 集</span>
+          <div class="action-row">
+            <button class="primary-btn" id="confirmRoleSetupBtn" type="button">确定角色并进入推演阶段</button>
           </div>
-        </div>
+        </article>
 
-        <div class="prompt-card">
-          <div>
-            <p class="prompt-title">输入优化提示</p>
-            <p id="promptPreview">保持角色欲望清晰，首场戏就抛出正面冲突，给结尾预留一个能钩下一场的硬悬念。</p>
-          </div>
-          <button class="ghost-btn small" id="optimizeInput" type="button">优化输入</button>
-        </div>
+        <input id="customTagInput" class="hidden" type="text" value="">
+        <p id="promptPreview" class="hidden"></p>
       </section>
 
       <section class="panel outline-panel" data-stage="2">
         <div class="panel-heading">
           <div>
-            <p class="panel-kicker">阶段 2-A</p>
+            <p class="panel-kicker">阶段 2</p>
             <h2>剧本结构树</h2>
           </div>
         </div>
@@ -148,7 +177,7 @@
         <aside class="outline-tree">
           <div class="tree-head">
             <div>
-              <h3>剧本结构树</h3>
+              <h3>大纲</h3>
               <p id="outlineStatus">还没有可用大纲</p>
             </div>
           </div>
@@ -156,20 +185,13 @@
         </aside>
 
         <div class="outline-side-controls">
-          <div class="control-group">
-            <label for="roundLimit">演绎轮数目标（软）</label>
+          <div class="hidden">
             <input id="roundLimit" type="range" min="3" max="12" value="6">
-            <div class="range-meta">
-              <span>3 轮目标</span>
-              <strong id="roundValue">6 轮目标</strong>
-              <span>12 轮目标</span>
-            </div>
-            <small id="roundHint">说明：这是“建议轮次”，用于提醒在该轮次附近收束；不会强制停止，剧情未完成会继续。</small>
+            <strong id="roundValue">6 轮目标</strong>
           </div>
-
           <label class="director-box">
             大纲审稿意见
-            <textarea id="outlineFeedback" rows="4" placeholder="例如：第 1 集不要先铺陈关系，直接公开打脸；第 2 集提前抛出录音笔。"></textarea>
+            <textarea id="outlineFeedback" rows="4" placeholder="例如：第1集直接起冲突，不要慢铺垫。"></textarea>
           </label>
 
           <div class="action-row">
@@ -221,20 +243,19 @@
             <strong id="timelineValue">第 0 句</strong>
             <span>当前</span>
           </div>
+          <div class="action-row">
+            <button class="ghost-btn" id="rollbackBtn" type="button">执行回档</button>
+          </div>
         </div>
 
         <div class="action-row">
-          <button class="warning-btn" id="cutScene" type="button">咔 Cut</button>
+          <button class="warning-btn" id="cutScene" type="button">暂停</button>
           <button class="primary-btn" id="continueScene" type="button">继续推演</button>
-        </div>
-
-        <div class="action-row">
-          <button class="ghost-btn" id="buildFreePlanBtn" type="button">生成最小开场</button>
         </div>
 
         <label class="director-box">
           导演指令
-          <textarea id="directorCommand" rows="4" placeholder="例如：@林若雪 下一句不要解释，直接把录音笔拍到桌上。"></textarea>
+          <textarea id="directorCommand" rows="4" placeholder="例如：让林若雪下一句先抛证据，不做解释。"></textarea>
         </label>
 
         <label class="director-box">
@@ -242,11 +263,9 @@
           <select id="targetRole"></select>
         </label>
 
-        <div class="action-row stack">
+        <div class="action-row">
           <button class="ghost-btn" id="sendDirective" type="button">注入下一轮指令</button>
-          <button class="ghost-btn" id="rollbackBtn" type="button">执行回档</button>
         </div>
-
       </section>
 
       <section class="panel monitor-panel" data-stage="3">
@@ -266,22 +285,23 @@
         <div class="panel-heading">
           <div>
             <p class="panel-kicker">阶段 4</p>
-            <h2>格式输出</h2>
+            <h2>导出结果</h2>
           </div>
-          <button class="primary-btn small" id="formatScript" type="button">导出台本与分镜</button>
+          <button class="ghost-btn small hidden" id="formatScript" type="button">手动导出</button>
         </div>
 
         <div class="output-layout">
           <article class="script-preview">
-            <h3>标准剧本预览</h3>
+            <h3>标准台本预览</h3>
             <pre id="scriptOutput"></pre>
+            <div class="action-row">
+              <button class="primary-btn" id="downloadScriptBtn" type="button">下载台本</button>
+            </div>
           </article>
-          <article class="api-card">
+          <article class="api-card hidden">
             <h3>状态与 JSON 预览</h3>
             <code id="apiSnippet">等待请求...</code>
-            <p id="apiHint">
-              当前 UI 会显示最后一次关键请求的返回结果，你可以直接用它来检查 session、outline、runtime snapshot 与导出物。
-            </p>
+            <p id="apiHint">隐藏</p>
             <button class="ghost-btn small" id="previewStateBtn" type="button">查看当前快照</button>
           </article>
         </div>
@@ -290,7 +310,7 @@
 
     <footer class="stage-footer-nav">
       <button class="ghost-btn" id="stagePrevBtn" type="button">上一步</button>
-      <p class="stage-hint" id="stageHint">阶段 1：先完成输入配置与角色设定。</p>
+      <p class="stage-hint" id="stageHint">阶段 1：先完成基础设定。</p>
       <div class="stage-footer-actions">
         <button class="ghost-btn" id="resetSessionBtn" type="button">重置会话</button>
         <button class="primary-btn" id="stageNextBtn" type="button">下一步</button>
@@ -312,9 +332,9 @@
         <div>
           <p class="panel-kicker">角色设计器</p>
           <h2 id="roleDesignerTitle">自定义角色信息与数量</h2>
-          <p id="roleDesignerStats">你可以为主角和配角加载模板、修改名字与信息，并决定角色数量。</p>
+          <p id="roleDesignerStats">可按模板快速创建并编辑角色。</p>
         </div>
-        <button class="icon-btn" id="closeRoleDesignerBtn" type="button" aria-label="关闭角色设计器">×</button>
+        <button class="icon-btn" id="closeRoleDesignerBtn" type="button" aria-label="关闭角色设计器">✕</button>
       </div>
 
       <div class="role-designer-toolbar">
@@ -332,9 +352,30 @@
     </section>
   </div>
 
+  <div class="modal-shell hidden" id="oneLineModal" aria-hidden="true">
+    <div class="modal-backdrop" id="oneLineModalBackdrop"></div>
+    <section class="modal-card one-line-modal" role="dialog" aria-modal="true" aria-labelledby="oneLineTitle">
+      <div class="modal-head">
+        <div>
+          <p class="panel-kicker">智能生成</p>
+          <h2 id="oneLineTitle">一句话输入</h2>
+        </div>
+        <button class="icon-btn" id="closeOneLineModalBtn" type="button" aria-label="关闭">✕</button>
+      </div>
+      <label>
+        输入一句话描述
+        <textarea id="oneLineInput" rows="4" placeholder="例如：真假千金在家族董事会上正面对决，男主突然公开关键录音。"></textarea>
+      </label>
+      <div class="action-row">
+        <button class="primary-btn" id="confirmOneLineBtn" type="button">生成并填充</button>
+      </div>
+    </section>
+  </div>
+
   <script src="./js/config.js"></script>
   <script src="./js/runtime-actions.js"></script>
   <script src="./js/bind-events.js"></script>
+  <script src="./js/workflow-mode.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

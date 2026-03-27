@@ -10,6 +10,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from Agent_model import parse_json_response
 from monitor_agent import RuleBasedMonitor
 from playlet_service import PlayletService, build_default_agents
 
@@ -51,6 +52,23 @@ def create_app() -> FastAPI:
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Model init failed: {exc}") from exc
 
+    def _generate_one_line_json(prompt: str) -> dict[str, Any]:
+        planner_agent, _, _ = _build_agents()
+        started_at = perf_counter()
+        response = planner_agent.client.chat.completions.create(
+            model=planner_agent.model,
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.2,
+        )
+        elapsed_ms = round((perf_counter() - started_at) * 1000, 1)
+        raw_text = response.choices[0].message.content
+        print(
+            f"[PERF][MODEL][one_line] ms={elapsed_ms} prompt_chars={len(prompt)} "
+            f"response_chars={len(raw_text or '')}"
+        )
+        return parse_json_response(raw_text)
+
     @app.post("/sessions/planned")
     def create_planned_session(payload: dict[str, Any] | None = None):
         payload = payload or {}
@@ -74,6 +92,96 @@ def create_app() -> FastAPI:
             "run_mode": session.run_mode,
             "planner_output": session.planner_output,
         }
+
+    @app.post("/assist/one-line/background")
+    def one_line_background(payload: dict[str, Any]):
+        text = str(payload.get("text", "")).strip()
+        if not text:
+            raise HTTPException(status_code=400, detail="text is required")
+        prompt = f"""
+你是短剧策划助手。根据用户一句话背景，提炼结构化字段并返回JSON。
+仅输出JSON，不要解释。
+
+用户输入：
+{text}
+
+输出字段：
+{{
+  "genre": "从以下枚举中选一个: 重生复仇/豪门虐恋/逆袭爽文/先婚后爱/职场博弈/悬疑反转",
+  "scene": "开场场景，20字内",
+  "logline": "故事核，一句话，60字内",
+  "expected_episodes": "整数，1-20"
+}}
+"""
+        try:
+            result = _generate_one_line_json(prompt)
+            return {"result": result}
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/assist/one-line/role")
+    def one_line_role(payload: dict[str, Any]):
+        text = str(payload.get("text", "")).strip()
+        if not text:
+            raise HTTPException(status_code=400, detail="text is required")
+        prompt = f"""
+你是短剧角色设计助手。根据用户一句话角色描述，生成角色卡字段并返回JSON。
+仅输出JSON，不要解释。
+如果用户描述里包含多个角色（例如使用“、/，/,和”等分隔），请输出多个角色。
+最多输出 5 个角色。
+
+用户输入：
+{text}
+
+输出字段：
+{{
+  "roles": [
+    {{
+      "name": "角色名",
+      "role_position": "male_lead_1/female_lead_1/chief_villain/male_lead_2/female_lead_2/minor_villain/supporting",
+      "gender": "男/女/未设定",
+      "age": 20,
+      "identity": "身份描述",
+      "appearance_tags": ["标签1","标签2"],
+      "personality_tags": ["标签1","标签2","标签3"],
+      "catchphrase": "口头禅"
+    }}
+  ]
+}}
+"""
+        try:
+            result = _generate_one_line_json(prompt)
+            roles_raw: list[dict[str, Any]] = []
+            if isinstance(result, dict):
+                if isinstance(result.get("roles"), list):
+                    roles_raw = [item for item in result["roles"] if isinstance(item, dict)]
+                elif any(k in result for k in ("name", "role_position", "identity")):
+                    roles_raw = [result]
+
+            normalized_roles: list[dict[str, Any]] = []
+            for item in roles_raw[:5]:
+                normalized_roles.append(
+                    {
+                        "name": str(item.get("name", "")).strip() or "新角色",
+                        "role_position": str(item.get("role_position", "supporting")).strip() or "supporting",
+                        "gender": str(item.get("gender", "未设定")).strip() or "未设定",
+                        "age": int(item.get("age", 20) or 20),
+                        "identity": str(item.get("identity", "待设定身份")).strip() or "待设定身份",
+                        "appearance_tags": item.get("appearance_tags")
+                        if isinstance(item.get("appearance_tags"), list)
+                        else ["待补充"],
+                        "personality_tags": item.get("personality_tags")
+                        if isinstance(item.get("personality_tags"), list)
+                        else ["待补充"],
+                        "catchphrase": str(item.get("catchphrase", "")).strip(),
+                    }
+                )
+
+            if not normalized_roles:
+                raise ValueError("model returned no role candidates")
+            return {"result": {"roles": normalized_roles}}
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.post("/sessions/{session_id}/outline/generate")
     def generate_outline(session_id: str):
@@ -202,4 +310,3 @@ def create_app() -> FastAPI:
         return StreamingResponse(_event_stream(), media_type="text/event-stream")
 
     return app
-

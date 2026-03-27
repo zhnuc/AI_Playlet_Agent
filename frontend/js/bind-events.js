@@ -16,8 +16,6 @@
       handleRoleDesignerChange,
       handleRoleDesignerClick,
       setApiPreview,
-      syncStageNav,
-      renderAllChips,
       resetSessionState,
       setStage,
       raGenerateOutline,
@@ -34,44 +32,39 @@
       raRefreshStage
     } = deps;
 
-    dom.randomizeAll = document.querySelector("#randomizeAll");
-    document.querySelector("#randomizeAll").addEventListener("click", randomizeAll);
-    document.querySelector("#optimizeInput").addEventListener("click", optimizeInput);
-    document.querySelector("#episodeCount").addEventListener("input", updateEpisodeCountDisplay);
-    document.querySelector("#roundLimit").addEventListener("input", updateRoundDisplay);
-    document.querySelector("#timelineSlider").addEventListener("input", updateTimelineDisplay);
-    dom.openRoleDesignerBtn.addEventListener("click", openRoleDesigner);
-    document.addEventListener("click", (event) => {
-      const target = event.target;
-      if (!(target instanceof HTMLElement)) return;
-      const trigger = target.closest("#openRoleDesignerBtn");
-      if (!trigger) return;
-      event.preventDefault();
-      openRoleDesigner();
-    });
-    dom.closeRoleDesignerBtn.addEventListener("click", closeRoleDesigner);
-    dom.roleDesignerModal.addEventListener("click", (event) => {
-      if (event.target instanceof HTMLElement && event.target.dataset.closeRoleModal === "true") {
-        closeRoleDesigner();
-      }
-    });
-    dom.addPresetRoleBtn.addEventListener("click", addPresetRole);
-    dom.addCustomRoleBtn.addEventListener("click", addCustomRole);
-    dom.roleDesignerList.addEventListener("input", handleRoleDesignerInput);
-    dom.roleDesignerList.addEventListener("change", handleRoleDesignerChange);
-    dom.roleDesignerList.addEventListener("click", handleRoleDesignerClick);
-    document.querySelector("#generateOutlineBtn").addEventListener("click", () => raGenerateOutline().catch((error) => setApiPreview("生成大纲失败。", { error: error.message })));
-    document.querySelector("#reviewOutlineBtn").addEventListener("click", () => raReviewOutline().catch((error) => setApiPreview("审稿失败。", { error: error.message })));
-    document.querySelector("#approveOutlineBtn").addEventListener("click", () => raApproveOutline().catch((error) => setApiPreview("审核通过失败。", { error: error.message })));
-    document.querySelector("#buildFreePlanBtn").addEventListener("click", () => {
-      state.runMode = "free";
-      syncStageNav();
-      dom.runModeResult.textContent = "自由开场";
-      dom.modeBadge.textContent = "自由开场";
-      renderAllChips();
-      raGenerateOutline().catch((error) => setApiPreview("生成最小 episode plan 失败。", { error: error.message }));
-    });
-    document.querySelector("#startDemo").addEventListener("click", async () => {
+    const on = (selector, event, handler) => {
+      const el = document.querySelector(selector);
+      if (el) el.addEventListener(event, handler);
+    };
+
+    on("#randomizeAll", "click", randomizeAll);
+    on("#optimizeInput", "click", optimizeInput);
+    on("#episodeCount", "input", updateEpisodeCountDisplay);
+    on("#roundLimit", "input", updateRoundDisplay);
+    on("#timelineSlider", "input", updateTimelineDisplay);
+
+    if (dom.openRoleDesignerBtn) dom.openRoleDesignerBtn.addEventListener("click", openRoleDesigner);
+    if (dom.closeRoleDesignerBtn) dom.closeRoleDesignerBtn.addEventListener("click", closeRoleDesigner);
+    if (dom.roleDesignerModal) {
+      dom.roleDesignerModal.addEventListener("click", (event) => {
+        if (event.target instanceof HTMLElement && event.target.dataset.closeRoleModal === "true") {
+          closeRoleDesigner();
+        }
+      });
+    }
+    if (dom.addPresetRoleBtn) dom.addPresetRoleBtn.addEventListener("click", addPresetRole);
+    if (dom.addCustomRoleBtn) dom.addCustomRoleBtn.addEventListener("click", addCustomRole);
+    if (dom.roleDesignerList) {
+      dom.roleDesignerList.addEventListener("input", handleRoleDesignerInput);
+      dom.roleDesignerList.addEventListener("change", handleRoleDesignerChange);
+      dom.roleDesignerList.addEventListener("click", handleRoleDesignerClick);
+    }
+
+    on("#generateOutlineBtn", "click", () => raGenerateOutline().catch((error) => setApiPreview("大纲生成失败", { error: error.message })));
+    on("#reviewOutlineBtn", "click", () => raReviewOutline().catch((error) => setApiPreview("审稿失败", { error: error.message })));
+    on("#approveOutlineBtn", "click", () => raApproveOutline().catch((error) => setApiPreview("审核通过失败", { error: error.message })));
+
+    on("#startDemo", "click", async () => {
       if (state.hasTriggeredStartDemo) return;
       state.hasTriggeredStartDemo = true;
       if (dom.startDemoBtn) dom.startDemoBtn.disabled = true;
@@ -81,27 +74,33 @@
         setApiPreview("推演启动失败", { error: error.message });
       }
     });
-    document.querySelector("#continueScene").addEventListener("click", raContinueScene);
-    document.querySelector("#nextEpisodeBtn").addEventListener("click", raStartNextEpisode);
-    document.querySelector("#cutScene").addEventListener("click", raCutScene);
-    document.querySelector("#sendDirective").addEventListener("click", raSendDirective);
-    document.querySelector("#rollbackBtn").addEventListener("click", raRollbackScene);
-    document.querySelector("#formatScript").addEventListener("click", raExportArtifacts);
-    document.querySelector("#previewStateBtn").addEventListener("click", raPreviewCurrentState);
-    document.querySelector("#refreshStageBtn").addEventListener("click", raRefreshStage);
-    document.querySelector("#resetSessionBtn").addEventListener("click", resetSessionState);
-    dom.stageSteps.forEach((button) => {
-      button.addEventListener("click", () => {
-        const targetStage = Number(button.dataset.stageTarget || "1");
-        setStage(targetStage);
+
+    on("#continueScene", "click", raContinueScene);
+    on("#nextEpisodeBtn", "click", raStartNextEpisode);
+    on("#cutScene", "click", raCutScene);
+    on("#sendDirective", "click", raSendDirective);
+    on("#rollbackBtn", "click", raRollbackScene);
+    on("#formatScript", "click", raExportArtifacts);
+    on("#previewStateBtn", "click", raPreviewCurrentState);
+    on("#refreshStageBtn", "click", raRefreshStage);
+    on("#resetSessionBtn", "click", resetSessionState);
+
+    if (dom.stageSteps) {
+      dom.stageSteps.forEach((button) => {
+        button.addEventListener("click", () => {
+          const targetStage = Number(button.dataset.stageTarget || "1");
+          setStage(targetStage);
+        });
       });
-    });
+    }
+
     if (dom.stagePrevBtn) {
       dom.stagePrevBtn.addEventListener("click", () => setStage(state.currentStage - 1));
     }
     if (dom.stageNextBtn) {
       dom.stageNextBtn.addEventListener("click", () => setStage(state.currentStage + 1));
     }
+
     window.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && state.roleDesignerOpen) {
         closeRoleDesigner();
@@ -111,3 +110,4 @@
 
   global.bindFrontendEvents = bindFrontendEvents;
 })(window);
+

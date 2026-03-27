@@ -52,6 +52,74 @@ button {
   display: none !important;
 }
 
+.mode-select {
+  margin-top: 18px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  padding: 22px;
+  display: grid;
+  gap: 14px;
+}
+
+.mode-select-head h2 {
+  margin: 0;
+  font-family: "Noto Serif SC", serif;
+}
+
+.mode-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.mode-card {
+  text-align: left;
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  border: 1px solid rgba(111, 82, 56, 0.15);
+  background: rgba(255, 249, 240, 0.7);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.mode-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(196, 82, 45, 0.35);
+  box-shadow: 0 16px 32px rgba(196, 82, 45, 0.18);
+}
+
+.mode-card h3 {
+  margin: 0 0 6px;
+  font-family: "Noto Serif SC", serif;
+}
+
+.mode-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.setup-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 249, 240, 0.74);
+  border: 1px solid rgba(111, 82, 56, 0.1);
+}
+
+.setup-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.setup-card-head h3 {
+  margin: 0;
+  font-family: "Noto Serif SC", serif;
+}
+
 textarea,
 input[type="text"],
 select {
@@ -471,6 +539,10 @@ select:focus {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.chip-list[data-field="runMode"] {
+  display: none;
 }
 
 .chip {
@@ -973,6 +1045,15 @@ input[type="range"] {
   accent-color: var(--accent);
 }
 
+input[type="number"] {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 250, 241, 0.92);
+  padding: 0.9rem 1rem;
+  color: var(--text);
+}
+
 .range-meta {
   display: flex;
   justify-content: space-between;
@@ -1056,6 +1137,10 @@ input[type="range"] {
   display: inline-flex;
   gap: 10px;
   align-items: center;
+}
+
+.one-line-modal {
+  width: min(720px, 100%);
 }
 
 .stage-hint {

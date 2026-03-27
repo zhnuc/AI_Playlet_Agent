@@ -298,13 +298,13 @@
         state.shouldContinue = false;
         const payload = await request(`/sessions/${state.sessionId}/director`, {
           method: "POST",
-          body: { command: "cut" }
+          body: { command: "pause" }
         });
         applySnapshot(payload.snapshot);
-        setStatus("Director cut applied");
-        setApiPreview("Cut command completed", payload);
+        setStatus("Episode paused");
+        setApiPreview("Pause command completed", payload);
       } catch (error) {
-        setApiPreview("Cut command failed", { error: error.message });
+        setApiPreview("Pause command failed", { error: error.message });
       }
     }
 

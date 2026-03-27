@@ -178,6 +178,9 @@ function setStage(targetStage, options = {}) {
   state.currentStage = stage;
   syncStagePanels();
   syncStageNav();
+  if (typeof window.__onStageChanged === "function") {
+    Promise.resolve(window.__onStageChanged(stage)).catch(() => {});
+  }
   requestAnimationFrame(syncTopPanelHeights);
   return true;
 }
@@ -1210,6 +1213,20 @@ window.bindFrontendEvents({
   raPreviewCurrentState,
   raRefreshStage
 });
+
+if (typeof window.initWorkflowMode === "function") {
+  window.initWorkflowMode({
+    state,
+    dom,
+    setStage,
+    setStatus,
+    setApiPreview,
+    renderAllChips,
+    refreshRoleUI,
+    updateEpisodeCountDisplay,
+    raExportArtifacts
+  });
+}
 
 initializeDefaults();
 resetSessionState();
