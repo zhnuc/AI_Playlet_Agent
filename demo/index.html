@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stage 3 Static Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="status-bar">
+    <div class="status-brand">
+      <p class="eyebrow">AI Playlet Agent</p>
+      <h1>阶段 3 静态 Demo</h1>
+    </div>
+    <div class="status-meta">
+      <article>
+        <span>运行模式</span>
+        <strong id="statusMode">大纲驱动</strong>
+      </article>
+      <article>
+        <span>Session</span>
+        <strong id="statusSession">sess_demo_001</strong>
+      </article>
+      <article>
+        <span>当前状态</span>
+        <strong id="statusState">等待推演</strong>
+      </article>
+    </div>
+  </header>
+
+  <main class="page-shell">
+    <section class="demo-toolbar">
+      <div>
+        <p class="panel-kicker">Stage 3 Demo</p>
+        <h2>按集推进的群聊式推演原型</h2>
+      </div>
+      <div class="preset-actions">
+        <button class="primary-btn" id="continueBtn" type="button">继续推演</button>
+        <button class="ghost-btn" id="rollbackStepBtn" type="button">回滚一步</button>
+        <button class="ghost-btn" id="nextEpisodeActionBtn" type="button">开始下一集</button>
+      </div>
+    </section>
+
+    <section class="scene-brief">
+      <div>
+        <p class="panel-kicker">当前状态</p>
+        <h2 id="sceneTitle">第 1 集尚未开始生成</h2>
+      </div>
+      <p id="sceneDescription">准备开始当前集推演</p>
+    </section>
+
+    <section class="workspace-grid">
+      <section class="chat-panel">
+        <div class="chat-panel-head">
+          <div>
+            <p class="panel-kicker">阶段 3-A</p>
+            <h2>群聊式推演沙盒</h2>
+          </div>
+          <div class="chat-panel-meta chat-panel-meta-main">
+            <span class="meta-pill" id="episodeChip">第 1 集</span>
+            <span class="meta-pill" id="turnChip">最新 Turn 0</span>
+            <span class="meta-pill" id="progressChip">0 / 4 组输出</span>
+          </div>
+        </div>
+
+        <div class="chat-feed" id="chatFeed" aria-live="polite"></div>
+      </section>
+
+      <aside class="side-rail">
+        <section class="side-card">
+          <div class="side-card-head">
+            <div>
+              <p class="panel-kicker">阶段 3-B</p>
+              <h2>导演与监制控制</h2>
+            </div>
+          </div>
+          <div class="control-summary">
+            <p class="summary-label">当前压缩表达</p>
+            <p class="summary-value" id="controlStateTitle">当前集尚未开始推进</p>
+            <p class="summary-copy" id="controlStateDescription">等待推演动作</p>
+          </div>
+          <div class="control-actions" id="controlActions"></div>
+        </section>
+
+        <section class="side-card">
+          <div class="side-card-head">
+            <div>
+              <p class="panel-kicker">阶段 3-C</p>
+              <h2>监控监制</h2>
+            </div>
+          </div>
+          <ul class="monitor-list" id="monitorList"></ul>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <div class="modal-shell hidden" id="roleCardShell" aria-hidden="true">
+    <div class="modal-backdrop" data-close="role-card"></div>
+    <section class="modal-card role-card-modal" role="dialog" aria-modal="true" aria-labelledby="roleCardTitle">
+      <div class="modal-head">
+        <div>
+          <p class="panel-kicker">角色卡</p>
+          <h2 id="roleCardTitle">角色详情</h2>
+        </div>
+        <button class="icon-btn" id="closeRoleCardBtn" type="button" aria-label="关闭角色卡">✕</button>
+      </div>
+
+      <div class="role-card-hero">
+        <div class="role-avatar-large" id="roleCardAvatar" aria-hidden="true"></div>
+        <div class="role-card-copy">
+          <h3 id="roleCardName"></h3>
+          <p class="role-card-identity" id="roleCardIdentity"></p>
+          <p class="role-card-summary" id="roleCardSummary"></p>
+        </div>
+      </div>
+
+      <section class="role-card-section">
+        <div class="section-head">
+          <h3>角色标签</h3>
+        </div>
+        <div class="tag-block">
+          <p class="tag-group-title">静态标签</p>
+          <div class="tag-list" id="staticTagList"></div>
+        </div>
+        <div class="tag-block">
+          <p class="tag-group-title">动态标签</p>
+          <div class="tag-list" id="dynamicTagList"></div>
+        </div>
+      </section>
+
+      <section class="role-card-section">
+        <div class="section-head">
+          <div>
+            <h3>当前集前几轮记录</h3>
+            <p id="recentRecordsHint">默认展示最近 5 条</p>
+          </div>
+          <div class="section-actions">
+            <button class="ghost-btn small" id="expandRecentBtn" type="button">展开更多</button>
+            <button class="primary-btn small" id="openHistoryBtn" type="button">聊天记录</button>
+          </div>
+        </div>
+        <div class="record-list" id="recentRecordList"></div>
+      </section>
+    </section>
+  </div>
+
+  <div class="modal-shell hidden" id="historyShell" aria-hidden="true">
+    <div class="modal-backdrop" data-close="history"></div>
+    <section class="modal-card history-modal" role="dialog" aria-modal="true" aria-labelledby="historyTitle">
+      <div class="modal-head">
+        <div>
+          <p class="panel-kicker">聊天记录</p>
+          <h2 id="historyTitle">完整历史会话</h2>
+          <p class="history-subtitle" id="historySubtitle"></p>
+        </div>
+        <div class="modal-head-actions">
+          <button class="ghost-btn small" id="backToRoleCardBtn" type="button">返回角色卡</button>
+          <button class="icon-btn" id="closeHistoryBtn" type="button" aria-label="关闭聊天记录">✕</button>
+        </div>
+      </div>
+
+      <div class="history-toolbar">
+        <label class="search-box">
+          <span>关键词搜索</span>
+          <input id="historySearchInput" type="text" placeholder="搜索 thought / action / dialogue 内容">
+        </label>
+        <div class="kind-filter" id="kindFilter"></div>
+      </div>
+
+      <div class="history-groups" id="historyGroups"></div>
+    </section>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
