@@ -60,6 +60,14 @@
       dom.roleDesignerList.addEventListener("change", handleRoleDesignerChange);
       dom.roleDesignerList.addEventListener("click", handleRoleDesignerClick);
     }
+    if (dom.mainRoleCards) {
+      dom.mainRoleCards.addEventListener("click", (event) => {
+        const btn = event.target.closest("button[data-action='toggle-role-cards']");
+        if (!btn) return;
+        dom.mainRoleCards.dataset.expanded = dom.mainRoleCards.dataset.expanded === "true" ? "false" : "true";
+        if (typeof renderMainRoleCards === "function") renderMainRoleCards();
+      });
+    }
 
     on("#generateOutlineBtn", "click", () => raGenerateOutline().catch((error) => setApiPreview("大纲生成失败", { error: error.message })));
     on("#reviewOutlineBtn", "click", () => raReviewOutline().catch((error) => setApiPreview("审稿失败", { error: error.message })));

@@ -1137,6 +1137,27 @@ input[type="number"] {
   line-height: 1.8;
 }
 
+.script-textarea {
+  display: block;
+  width: 100%;
+  min-height: 380px;
+  max-height: 520px;
+  resize: vertical;
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
+  line-height: 1.8;
+  font-family: "IBM Plex Mono", "Consolas", monospace;
+  font-size: 0.875rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-sizing: border-box;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 6px;
+  background: var(--surface-2, #f8fafc);
+  color: inherit;
+}
+
 .api-card {
   display: grid;
   gap: 14px;

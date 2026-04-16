@@ -420,16 +420,20 @@ function updateRoleSummaryText() {
 }
 
 function renderMainRoleCards() {
-  const visibleRoles = sortRolesByImportance(state.roleDrafts)
-    .filter((role) => getRolePositionMeta(role.role_position).priority < 99)
-    .slice(0, 3);
+  const allRoles = sortRolesByImportance(state.roleDrafts)
+    .filter((role) => getRolePositionMeta(role.role_position).priority < 99);
 
-  if (!visibleRoles.length) {
+  if (!allRoles.length) {
     dom.mainRoleCards.innerHTML = '<div class="main-role-empty">当前还没有被识别为核心展示位的角色。先在角色设计器中设置男一、女一、大反派或二番位。</div>';
     return;
   }
 
-  dom.mainRoleCards.innerHTML = visibleRoles
+  const FOLD_THRESHOLD = 3;
+  const isExpanded = dom.mainRoleCards.dataset.expanded === "true";
+  const visibleRoles = isExpanded ? allRoles : allRoles.slice(0, FOLD_THRESHOLD);
+  const hasMore = allRoles.length > FOLD_THRESHOLD;
+
+  const cardsHtml = visibleRoles
     .map((role, index) => `
       <article class="role-card" data-role-id="${role.id}">
         <div class="role-card-topline">
@@ -446,6 +450,14 @@ function renderMainRoleCards() {
       </article>
     `)
     .join("");
+
+  const toggleHtml = hasMore
+    ? `<button class="role-card-toggle-btn" type="button" data-action="toggle-role-cards">
+        ${isExpanded ? `收起 ▲` : `查看更多（共 ${allRoles.length} 个角色）▼`}
+       </button>`
+    : "";
+
+  dom.mainRoleCards.innerHTML = cardsHtml + toggleHtml;
 }
 
 function renderRoleDesignerList() {
@@ -570,7 +582,7 @@ function initializeDefaults() {
   dom.plotInput.value = "真千金归来，当场撕开假千金和渣男联手设局的第一层伪装。";
   dom.sceneInput.value = options.scene[0];
   dom.promptPreview.textContent = promptMap[state.selectedGenre];
-  dom.scriptOutput.textContent = "还没有导出结果。先生成大纲并跑完一轮推演。";
+  dom.scriptOutput.value = "还没有导出结果。先生成大纲并跑完一轮推演。";
   initializeRoleDrafts();
   renderRolePresetOptions();
   dom.roleComposerDisplay.classList.remove("hidden");
@@ -1067,12 +1079,12 @@ function renderOutline() {
 
 function formatEventLabel(event) {
   const kindMap = {
-    thought: "Inner_Thought",
-    action: "Action",
-    dialogue: "Dialogue",
-    monitor: "Monitor",
-    director: "Director",
-    system: "System"
+    thought: "内心想法",
+    action: "动作",
+    dialogue: "对白",
+    monitor: "监制",
+    director: "导演",
+    system: "系统"
   };
   return `${event.speaker || "SYSTEM"} · ${kindMap[event.kind] || event.kind || "Event"}`;
 }
@@ -1157,9 +1169,9 @@ function renderMessages() {
 
       const orderMap = { thought: 0, action: 1, dialogue: 2 };
       const labelMap = {
-        thought: "Inner_Thought",
-        action: "Action",
-        dialogue: "Dialogue"
+        thought: "内心想法",
+        action: "动作",
+        dialogue: "对白"
       };
       const sortedLines = [...group.lines].sort((a, b) => (orderMap[a.kind] ?? 99) - (orderMap[b.kind] ?? 99));
       bodyEl.innerHTML = sortedLines
@@ -1200,7 +1212,7 @@ function renderMonitorFeed() {
   if (beatState?.beats?.length) {
     const beat = beatState.beats[Math.min(Math.max(beatState.active_index ?? 0, 0), beatState.beats.length - 1)];
     if (beat) {
-      notes.push(`当前 Beat：${beat.label}（需落点：${beat.must_land || "未设定"}）`);
+      notes.push(`当前剧情节点：${beat.label}（需落点：${beat.must_land || "未设定"}）`);
     }
   }
 
@@ -1215,7 +1227,15 @@ function renderMonitorFeed() {
     const nextSpeaker = Array.isArray(item.resolved_next_speaker)
       ? item.resolved_next_speaker.join(", ")
       : item.resolved_next_speaker || "无";
-    notes.push(`路由追踪：第 ${item.step} 句由 ${item.speaker} 发起，状态 ${item.status}，下一位 ${nextSpeaker}`);
+    const routeStatusMap = {
+      continue: "继续推演",
+      queue_open: "多人响应中",
+      queue_continue: "队列推进中",
+      handoff: "交接",
+      ended: "本集结束"
+    };
+    const statusLabel = routeStatusMap[item.status] || item.status;
+    notes.push(`路由追踪：第 ${item.step} 句由 ${item.speaker} 发起，状态 ${statusLabel}，下一位 ${nextSpeaker}`);
   });
 
   if (!notes.length) {
@@ -1296,7 +1316,7 @@ function resetSessionState() {
   dom.sessionBadge.textContent = "未创建";
   setStatus("待机中");
   dom.outlineStatus.textContent = "还没有可用大纲";
-  dom.scriptOutput.textContent = "还没有导出结果。先生成大纲并跑完一轮推演。";
+  dom.scriptOutput.value = "还没有导出结果。先生成大纲并跑完一轮推演。";
   setApiPreview("当前还没有 session。", "等待请求...");
   renderOutline();
   renderMessages();

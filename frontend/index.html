@@ -293,10 +293,12 @@
 
         <div class="output-layout">
           <article class="script-preview">
-            <h3>标准台本预览</h3>
-            <pre id="scriptOutput"></pre>
+            <h3>台本预览 <small>（可直接编辑）</small></h3>
+            <textarea id="scriptOutput" class="script-textarea" spellcheck="false"></textarea>
             <div class="action-row">
-              <button class="primary-btn" id="downloadScriptBtn" type="button">下载台本</button>
+              <button class="primary-btn" id="downloadScriptBtn" type="button">下载 .txt</button>
+              <button class="ghost-btn" id="downloadMdBtn" type="button">下载 .md</button>
+              <button class="ghost-btn" id="downloadJsonBtn" type="button">下载 .json</button>
             </div>
           </article>
           <article class="api-card hidden">

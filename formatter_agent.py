@@ -59,6 +59,31 @@ def export_episode_shotlist(runtime_state: RuntimeState, episode_plan: dict[str,
     }
 
 
+def export_episode_script_markdown(runtime_state: RuntimeState, episode_plan: dict[str, Any]) -> str:
+    """导出 Markdown 格式台本。"""
+    episode = runtime_state.story.current_episode
+    lines = [
+        f"# 第 {episode} 集",
+        f"",
+        f"**场景**：{runtime_state.story.current_scene}  ",
+        f"**主线**：{episode_plan['global_plot']}",
+        f"",
+        f"---",
+        f"",
+    ]
+    for event in runtime_state.story.event_log:
+        if event.kind == "dialogue":
+            lines.append(f"**{event.speaker}**：{event.content}")
+            lines.append("")
+        elif event.kind == "action":
+            lines.append(f"*（{event.speaker} {event.content}）*")
+            lines.append("")
+        elif event.kind == "thought":
+            lines.append(f"> 【内心 · {event.speaker}】{event.content}")
+            lines.append("")
+    return "\n".join(lines)
+
+
 def export_artifacts(
     runtime_state: RuntimeState,
     episode_plan: dict[str, Any],
@@ -67,6 +92,7 @@ def export_artifacts(
     """统一导出剧本、shotlist 和整季摘要。"""
     return {
         "script": export_episode_script(runtime_state, episode_plan),
+        "script_markdown": export_episode_script_markdown(runtime_state, episode_plan),
         "shotlist": export_episode_shotlist(runtime_state, episode_plan),
         "season_summary": season_summary or {},
     }

@@ -230,20 +230,44 @@
       }
     }
 
+    function triggerDownload(content, filename, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
     function setupDownload() {
-      if (!downloadScriptBtn) return;
-      downloadScriptBtn.addEventListener("click", () => {
-        const content = dom.scriptOutput?.textContent || "";
-        const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `playlet_script_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      });
+      const ts = () => new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+
+      if (downloadScriptBtn) {
+        downloadScriptBtn.addEventListener("click", () => {
+          const content = dom.scriptOutput?.value || "";
+          triggerDownload(content, `playlet_script_${ts()}.txt`, "text/plain;charset=utf-8");
+        });
+      }
+
+      const downloadMdBtn = document.querySelector("#downloadMdBtn");
+      if (downloadMdBtn) {
+        downloadMdBtn.addEventListener("click", () => {
+          const content = state.exportPayload?.script_markdown || dom.scriptOutput?.value || "";
+          triggerDownload(content, `playlet_script_${ts()}.md`, "text/markdown;charset=utf-8");
+        });
+      }
+
+      const downloadJsonBtn = document.querySelector("#downloadJsonBtn");
+      if (downloadJsonBtn) {
+        downloadJsonBtn.addEventListener("click", () => {
+          const payload = state.exportPayload || {};
+          const content = JSON.stringify(payload, null, 2);
+          triggerDownload(content, `playlet_export_${ts()}.json`, "application/json;charset=utf-8");
+        });
+      }
     }
 
     if (freeCard) freeCard.addEventListener("click", () => chooseMode("free"));

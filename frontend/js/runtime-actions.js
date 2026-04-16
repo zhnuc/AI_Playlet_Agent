@@ -491,8 +491,9 @@
               method: "POST"
             });
             state.hasExportedArtifacts = true;
+            state.exportPayload = payload;
             setStage(4, { force: true });
-            dom.scriptOutput.textContent = payload.script || "No script output.";
+            if (dom.scriptOutput) dom.scriptOutput.value = payload.script || "";
             setApiPreview("导出完成", payload.shotlist || payload);
             setStatus("导出已完成");
           }

@@ -188,13 +188,15 @@ def create_runtime_state(
 ) -> RuntimeState:
     """创建单集运行所需的初始状态 runtime-state。"""
     episode_plan = get_episode_plan(planner_output, episode)
+    known_roles = set(global_config["character_roster"].keys())
+    scene_roles = [r for r in episode_plan.get("scene_roles", []) if r in known_roles]
     story = StoryContext(
         drama_settings=global_config["drama_settings"],
         logline=global_config["logline"],
         character_roster=global_config["character_roster"],
         current_episode=episode,
         current_scene=episode_plan["place"],
-        scene_roles=episode_plan["scene_roles"],
+        scene_roles=scene_roles,
     )
     role_memories = build_role_memories(global_config, episode_plan, previous_role_memories=previous_role_memories)
     return RuntimeState(
