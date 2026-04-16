@@ -48,6 +48,145 @@ class PlayletService:
     def _new_session_id(self) -> str:
         return uuid4().hex[:12]
 
+    @staticmethod
+    def _status_label_from_snapshot(runtime: EpisodeSession | None) -> str:
+        if runtime is None:
+            return "待机中"
+        if runtime.result is not None:
+            return f"本集结束：{runtime.result.get('status', runtime.status)}"
+        if runtime.status == "paused":
+            return "当前已暂停"
+        return "推演进行中"
+
+    @staticmethod
+    def _build_chat_messages(runtime: EpisodeSession) -> list[dict[str, Any]]:
+        triple_kinds = {"thought", "action", "dialogue"}
+        events = [
+            event
+            for event in runtime.runtime_state.story.event_log
+            if event.episode == runtime.runtime_state.story.current_episode and event.kind in triple_kinds
+        ]
+        messages: list[dict[str, Any]] = []
+        i = 0
+        while i < len(events):
+            current = events[i]
+            segments: list[dict[str, Any]] = []
+            j = i
+            while j < len(events):
+                evt = events[j]
+                if evt.step != current.step or evt.speaker != current.speaker:
+                    break
+                if evt.kind not in triple_kinds:
+                    break
+                segments.append(
+                    {
+                        "event_id": evt.event_id,
+                        "kind": evt.kind,
+                        "content": evt.content,
+                    }
+                )
+                j += 1
+
+            if segments:
+                messages.append(
+                    {
+                        "message_group_id": f"msg_{current.step}_{current.speaker}",
+                        "episode": current.episode,
+                        "scene": current.scene,
+                        "turn": current.step,
+                        "speaker_id": current.speaker,
+                        "speaker_name": current.speaker,
+                        "segments": segments,
+                    }
+                )
+            i = j if j > i else i + 1
+        return messages
+
+    @staticmethod
+    def _build_control_events(runtime: EpisodeSession) -> list[dict[str, Any]]:
+        title_map = {
+            "director": "导演指令",
+            "monitor": "监制提示",
+            "system": "系统事件",
+        }
+        events = [
+            event
+            for event in runtime.runtime_state.story.event_log
+            if event.episode == runtime.runtime_state.story.current_episode and event.kind in {"director", "monitor", "system"}
+        ]
+        control_events: list[dict[str, Any]] = []
+        for event in events:
+            control_events.append(
+                {
+                    "event_id": event.event_id,
+                    "episode": event.episode,
+                    "turn": event.step,
+                    "source_type": event.kind,
+                    "title": title_map.get(event.kind, "系统事件"),
+                    "content": event.content,
+                    "target_role_id": None,
+                    "target_role_name": None,
+                }
+            )
+        return control_events
+
+    @staticmethod
+    def _build_role_profiles(runtime: EpisodeSession) -> dict[str, dict[str, Any]]:
+        roster = runtime.runtime_state.story.character_roster
+        role_profiles: dict[str, dict[str, Any]] = {}
+        for role_name, profile in roster.items():
+            role_memory = runtime.runtime_state.role_memories.get(role_name)
+            role_profiles[role_name] = {
+                "character_id": role_name,
+                "static_profile": {
+                    "name": role_name,
+                    "age": profile.get("age"),
+                    "gender": profile.get("gender", "未设定"),
+                    "identity": profile.get("identity", ""),
+                    "role_position": profile.get("role_position", "supporting"),
+                    "role_type": profile.get("role_type", "配角"),
+                    "appearance_tags": profile.get("appearance_tags", []),
+                    "personality_tags": profile.get("personality_tags", []),
+                },
+                "dynamic_profile": {
+                    "current_goal": role_memory.current_goal if role_memory else "",
+                    "beliefs_about_others": role_memory.beliefs_about_others if role_memory else {},
+                    "unresolved_hook": role_memory.unresolved_hook if role_memory else "",
+                    "episode_digest_public": role_memory.episode_digest_public if role_memory else "",
+                    "episode_digest_private": role_memory.episode_digest_private if role_memory else "",
+                },
+            }
+        return role_profiles
+
+    @staticmethod
+    def _build_current_episode_records_by_role(runtime: EpisodeSession) -> dict[str, list[dict[str, Any]]]:
+        triple_kinds = {"thought", "action", "dialogue"}
+        current_episode = runtime.runtime_state.story.current_episode
+        records_by_role: dict[str, list[dict[str, Any]]] = {
+            role_name: [] for role_name in runtime.runtime_state.story.character_roster.keys()
+        }
+        for event in runtime.runtime_state.story.event_log:
+            if event.episode != current_episode:
+                continue
+            if event.kind not in triple_kinds:
+                continue
+            if event.speaker not in records_by_role:
+                records_by_role[event.speaker] = []
+            records_by_role[event.speaker].append(
+                {
+                    "event_id": event.event_id,
+                    "episode": event.episode,
+                    "scene": event.scene,
+                    "turn": event.step,
+                    "kind": event.kind,
+                    "content": event.content,
+                }
+            )
+
+        for role_name in records_by_role:
+            records_by_role[role_name].sort(key=lambda item: (item["turn"], item["event_id"]), reverse=True)
+        return records_by_role
+
     def create_planned_session(
         self,
         config_override: dict[str, Any] | None = None,
@@ -156,6 +295,7 @@ class PlayletService:
         snapshot: dict[str, Any] = {
             "session_id": session.session_id,
             "run_mode": session.run_mode,
+            "status_label": self._status_label_from_snapshot(session.episode_session),
             "outline_approved": session.planner_review_state.approved,
             "planner_output": session.planner_output,
             "role_names": list(session.runtime_config["character_roster"].keys()),
@@ -167,6 +307,9 @@ class PlayletService:
         snapshot.update(
             {
                 "episode_status": runtime.status,
+                "status_label": self._status_label_from_snapshot(runtime),
+                "current_episode": runtime.runtime_state.story.current_episode,
+                "current_scene": runtime.runtime_state.story.current_scene,
                 "episode_plan": runtime.episode_plan,
                 "current_turn": runtime.runtime_state.story.current_turn,
                 "current_speaker": runtime.current_speaker,
@@ -175,6 +318,10 @@ class PlayletService:
                 "beat_state": runtime.runtime_state.beat_state,
                 "turn_trace": runtime.turn_trace,
                 "event_log": runtime.runtime_state.story.event_log,
+                "chat_messages": self._build_chat_messages(runtime),
+                "control_events": self._build_control_events(runtime),
+                "role_profiles": self._build_role_profiles(runtime),
+                "current_episode_records_by_role": self._build_current_episode_records_by_role(runtime),
                 "interaction": runtime.runtime_state.interaction,
                 "result": runtime.result,
             }

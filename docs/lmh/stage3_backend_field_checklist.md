@@ -2,6 +2,37 @@
 
 最新修改：2026-04-13 14:11
 
+## 0. P0 落地状态（2026-04-17）
+
+当前分支已完成 P0 范围内的后端与前端联动（兼容旧字段，不破坏既有链路）：
+
+- 后端快照新增字段（来源：`PlayletService.get_episode_snapshot`）：
+  - `status_label`
+  - `chat_messages`
+  - `control_events`
+  - `role_profiles`
+  - `current_episode_records_by_role`
+- 旧字段继续保留（如 `event_log`、`turn_trace`），前端可平滑迁移。
+- 前端主页面已支持：
+  - 群聊头像/角色名点击打开角色卡
+  - 角色卡展示静态信息 + 当前集最近记录（thought/action/dialogue）
+
+### 0.1 前端当前映射（P0）
+
+| 前端展示位 | 当前读取字段 | 回退策略 |
+|---|---|---|
+| 群聊三段式消息 | `chat_messages[].segments[]` | 回退到 `event_log` 分组 |
+| 角色卡基础信息 | `role_profiles[role_name].static_profile` | 回退到前端角色草稿 |
+| 角色卡动态摘要 | `role_profiles[role_name].dynamic_profile` | 空态文案 |
+| 角色卡当集记录 | `current_episode_records_by_role[role_name]` | 回退到 `chat_messages` 反推 |
+| 状态栏文案 | `status_label` | 由本地状态推导 |
+
+### 0.2 本轮未落地（仍属后续范围）
+
+- 完整“聊天记录二级窗口”搜索筛选（关键词 + kind + 按集展开）
+- 监控控制区结构化卡片（仅保留现有列表展示）
+- 测试全绿（当前分支已有历史测试基线问题，见项目计划中的风险项）
+
 说明：面向后端对接的可交付字段清单，用于统一阶段 3 群聊窗口、右下角监控控制区、角色卡和聊天记录窗口的数据口径。
 
 ## 1. 文档目标

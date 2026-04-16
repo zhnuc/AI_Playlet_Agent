@@ -47,6 +47,7 @@ def execute_next_turn(session: Any) -> dict[str, Any]:
         controller_instruction=controller_instruction,
         soft_turn_limit=session.soft_turn_limit,
         hard_turn_limit=session.hard_turn_limit,
+        run_mode=session.run_mode,
         ignore_route=ignore_route,
     )
 

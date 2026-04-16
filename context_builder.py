@@ -5,7 +5,7 @@ from typing import Any
 
 from episode_beats import can_end_current_episode, get_active_beat
 from event_committer import get_role_visible_events
-from story_state import Event, INTERACTION_MODE_PENDING_REPLIES, RuntimeState
+from story_state import Event, INTERACTION_MODE_PENDING_REPLIES, RunMode, RuntimeState
 
 SCENE_WINDOW_MIN = 3
 SCENE_WINDOW_MAX = 5
@@ -217,8 +217,9 @@ def build_controller_block(
     role_instruction: str | None,
     monitor_instruction: str | None,
     controller_instruction: str | None,
+    run_mode: RunMode = "planned",
 ) -> str:
-    end_allowed = can_end_current_episode(runtime_state)
+    end_allowed = can_end_current_episode(runtime_state, run_mode=run_mode)
     director_instruction = role_instruction or scene_instruction or "none"
     repair_hint = controller_instruction or "none"
     monitor_note = monitor_instruction or "none"
@@ -279,8 +280,8 @@ def build_routing_rules(
     return "\n".join(rules)
 
 
-def build_output_contract(role_name: str, runtime_state: RuntimeState) -> str:
-    end_allowed = can_end_current_episode(runtime_state)
+def build_output_contract(role_name: str, runtime_state: RuntimeState, run_mode: RunMode = "planned") -> str:
+    end_allowed = can_end_current_episode(runtime_state, run_mode=run_mode)
     allowed_next = ", ".join(build_allowed_next_speakers(role_name, runtime_state))
     return f"""
 ## Output Contract
@@ -314,6 +315,7 @@ def build_role_context(
     controller_instruction: str | None = None,
     soft_turn_limit: int | None = None,
     hard_turn_limit: int | None = None,
+    run_mode: RunMode = "planned",
 ) -> str:
     """Build runtime prompt with a fixed six-layer structure."""
     del soft_turn_limit  # retained for call compatibility
@@ -336,9 +338,10 @@ def build_role_context(
             role_instruction=role_instruction,
             monitor_instruction=monitor_instruction,
             controller_instruction=controller_instruction,
+            run_mode=run_mode,
         )
     )
     sections.append(build_routing_rules(role_name, runtime_state, retry_invalid_next_speaker))
-    sections.append(build_output_contract(role_name, runtime_state))
+    sections.append(build_output_contract(role_name, runtime_state, run_mode=run_mode))
 
     return "\n\n".join(section for section in sections if section).strip() + "\n"

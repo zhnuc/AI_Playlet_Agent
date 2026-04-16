@@ -7,7 +7,7 @@ from typing import Any
 from Agent_model import Role_Agent_Box
 from context_builder import build_role_context
 from scheduler import extract_next_speakers
-from story_state import RoleMemory, RuntimeState
+from story_state import RoleMemory, RunMode, RuntimeState
 
 DEBUG_ROLE_IO_ENABLED = os.getenv("DEBUG_ROLE_IO_ENABLED", "1").strip().lower() not in {"0", "false", "off"}
 DEBUG_ROLE_IO_FULL = os.getenv("DEBUG_ROLE_IO_FULL", "0").strip().lower() in {"1", "true", "on"}
@@ -121,6 +121,7 @@ def generate_role_turn_with_route_retry(
     controller_instruction: str | None = None,
     soft_turn_limit: int | None = None,
     hard_turn_limit: int | None = None,
+    run_mode: RunMode = "planned",
     ignore_route: bool = False,
 ) -> dict[str, object]:
     use_fallback_history = should_use_fallback_history(runtime_state.role_memories[current_speaker])
@@ -145,6 +146,7 @@ def generate_role_turn_with_route_retry(
             controller_instruction=controller_instruction,
             soft_turn_limit=soft_turn_limit,
             hard_turn_limit=hard_turn_limit,
+            run_mode=run_mode,
         )
         turn_output = role_agent_box.generate_role_response(current_speaker, prompt)
         if isinstance(turn_output, str):

@@ -27,7 +27,9 @@ const state = {
   currentStage: 1,
   hasExportedArtifacts: false,
   hasTriggeredStartDemo: false,
-  loadingDepth: 0
+  loadingDepth: 0,
+  roleCardOpen: false,
+  roleCardRoleName: null
 };
 
 const dom = {
@@ -92,7 +94,17 @@ const dom = {
   configBaseUrlInput: document.querySelector("#configBaseUrlInput"),
   configApiKeyInput: document.querySelector("#configApiKeyInput"),
   configModelInput: document.querySelector("#configModelInput"),
-  saveConfigBtn: document.querySelector("#saveConfigBtn")
+  saveConfigBtn: document.querySelector("#saveConfigBtn"),
+  chatRoleCardShell: document.querySelector("#chatRoleCardShell"),
+  chatRoleCardBackdrop: document.querySelector("#chatRoleCardBackdrop"),
+  closeChatRoleCardBtn: document.querySelector("#closeChatRoleCardBtn"),
+  chatRoleCardAvatar: document.querySelector("#chatRoleCardAvatar"),
+  chatRoleCardName: document.querySelector("#chatRoleCardName"),
+  chatRoleCardIdentity: document.querySelector("#chatRoleCardIdentity"),
+  chatRoleCardSummary: document.querySelector("#chatRoleCardSummary"),
+  chatRoleStaticTags: document.querySelector("#chatRoleStaticTags"),
+  chatRoleRecordList: document.querySelector("#chatRoleRecordList"),
+  chatRoleCardHint: document.querySelector("#chatRoleCardHint")
 };
 
 const stagePanels = {
@@ -420,11 +432,10 @@ function updateRoleSummaryText() {
 }
 
 function renderMainRoleCards() {
-  const allRoles = sortRolesByImportance(state.roleDrafts)
-    .filter((role) => getRolePositionMeta(role.role_position).priority < 99);
+  const allRoles = sortRolesByImportance(state.roleDrafts);
 
   if (!allRoles.length) {
-    dom.mainRoleCards.innerHTML = '<div class="main-role-empty">当前还没有被识别为核心展示位的角色。先在角色设计器中设置男一、女一、大反派或二番位。</div>';
+    dom.mainRoleCards.innerHTML = '<div class="main-role-empty">当前还没有角色卡。请先在角色设计器中添加角色。</div>';
     return;
   }
 
@@ -437,7 +448,7 @@ function renderMainRoleCards() {
     .map((role, index) => `
       <article class="role-card" data-role-id="${role.id}">
         <div class="role-card-topline">
-          <p class="prompt-title">核心角色 ${index + 1}</p>
+          <p class="prompt-title">角色 ${index + 1}</p>
           <span class="role-position-pill">${escapeMarkup(getRolePositionMeta(role.role_position).label)}</span>
         </div>
         <div class="role-card-head">
@@ -852,7 +863,7 @@ function updateRunToggleButton() {
   dom.runToggleBtn.disabled = false;
   dom.runToggleBtn.classList.remove("warning-btn");
   dom.runToggleBtn.classList.add("primary-btn");
-  dom.runToggleBtn.textContent = "继续推演";
+  dom.runToggleBtn.textContent = "开始推演";
 
   if (!state.snapshot) {
     return;
@@ -1089,6 +1100,155 @@ function formatEventLabel(event) {
   return `${event.speaker || "SYSTEM"} · ${kindMap[event.kind] || event.kind || "Event"}`;
 }
 
+function roleAvatarText(roleName) {
+  const text = String(roleName || "角").trim();
+  return text ? text.slice(0, 1) : "角";
+}
+
+function roleAvatarTone(roleName) {
+  const palette = [
+    "linear-gradient(135deg, #c4522d, #8e3417)",
+    "linear-gradient(135deg, #1f5f84, #113f5d)",
+    "linear-gradient(135deg, #7d4b9a, #56316b)",
+    "linear-gradient(135deg, #2d7d56, #1e5a3d)",
+    "linear-gradient(135deg, #9b3b2f, #6d271f)",
+  ];
+  const key = String(roleName || "");
+  let sum = 0;
+  for (let idx = 0; idx < key.length; idx += 1) {
+    sum += key.charCodeAt(idx);
+  }
+  return palette[sum % palette.length];
+}
+
+function getChatMessagesForRender() {
+  const snapshotMessages = state.snapshot?.chat_messages;
+  if (Array.isArray(snapshotMessages) && snapshotMessages.length) {
+    return snapshotMessages;
+  }
+
+  const events = state.snapshot?.event_log || [];
+  const groups = groupEventsForChat(
+    events.filter((event) => ["thought", "action", "dialogue"].includes(event.kind))
+  );
+  return groups
+    .filter((group) => group.type === "compound")
+    .map((group) => ({
+      message_group_id: `msg_${group.step}_${group.speaker}`,
+      episode: state.snapshot?.current_episode || 1,
+      scene: state.snapshot?.episode_plan?.place || "",
+      turn: group.step,
+      speaker_id: group.speaker,
+      speaker_name: group.speaker,
+      segments: [...group.lines].map((line) => ({ kind: line.kind, content: line.content, event_id: line.event_id }))
+    }));
+}
+
+function getRoleProfile(roleName) {
+  const fromSnapshot = state.snapshot?.role_profiles?.[roleName];
+  if (fromSnapshot) return fromSnapshot;
+
+  const fallbackDraft = state.roleDrafts.find((role) => role.name === roleName);
+  return {
+    character_id: roleName,
+    static_profile: {
+      name: roleName,
+      identity: fallbackDraft?.identity || "待设定身份",
+      appearance_tags: normalizeTagList(fallbackDraft?.appearance_tags || []),
+      personality_tags: normalizeTagList(fallbackDraft?.personality_tags || []),
+      role_type: fallbackDraft?.role_type || "配角",
+      role_position: fallbackDraft?.role_position || "supporting",
+      age: fallbackDraft?.age || "",
+      gender: fallbackDraft?.gender || "未设定"
+    },
+    dynamic_profile: {
+      current_goal: "",
+      episode_digest_public: "",
+      episode_digest_private: ""
+    }
+  };
+}
+
+function getCurrentEpisodeRoleRecords(roleName) {
+  const fromSnapshot = state.snapshot?.current_episode_records_by_role?.[roleName];
+  if (Array.isArray(fromSnapshot)) {
+    return fromSnapshot;
+  }
+  const messages = getChatMessagesForRender().filter((item) => item.speaker_name === roleName);
+  const records = [];
+  messages.forEach((message) => {
+    (message.segments || []).forEach((segment) => {
+      records.push({
+        event_id: segment.event_id || `${message.turn}_${segment.kind}`,
+        episode: message.episode,
+        scene: message.scene,
+        turn: message.turn,
+        kind: segment.kind,
+        content: segment.content,
+      });
+    });
+  });
+  return records.sort((left, right) => (right.turn || 0) - (left.turn || 0));
+}
+
+function openRoleCard(roleName) {
+  state.roleCardRoleName = roleName;
+  state.roleCardOpen = true;
+  renderRoleCard();
+}
+
+function closeRoleCard() {
+  state.roleCardOpen = false;
+  renderRoleCard();
+}
+
+function renderRoleCard() {
+  const roleName = state.roleCardRoleName;
+  const isOpen = Boolean(state.roleCardOpen && roleName);
+  if (!dom.chatRoleCardShell) return;
+  dom.chatRoleCardShell.classList.toggle("hidden", !isOpen);
+  dom.chatRoleCardShell.setAttribute("aria-hidden", String(!isOpen));
+  if (!isOpen) return;
+
+  const profile = getRoleProfile(roleName);
+  const staticProfile = profile.static_profile || {};
+  const dynamicProfile = profile.dynamic_profile || {};
+  const records = getCurrentEpisodeRoleRecords(roleName).slice(0, 5);
+
+  dom.chatRoleCardAvatar.textContent = roleAvatarText(roleName);
+  dom.chatRoleCardAvatar.style.background = roleAvatarTone(roleName);
+  dom.chatRoleCardName.textContent = staticProfile.name || roleName;
+  dom.chatRoleCardIdentity.textContent = staticProfile.identity || "待设定身份";
+  dom.chatRoleCardSummary.textContent = dynamicProfile.current_goal || dynamicProfile.episode_digest_public || "当前暂无动态摘要。";
+  dom.chatRoleCardHint.textContent = `第 ${state.snapshot?.current_episode || 1} 集 · 最新在上`;
+
+  const tags = [
+    ...(Array.isArray(staticProfile.appearance_tags) ? staticProfile.appearance_tags : []),
+    ...(Array.isArray(staticProfile.personality_tags) ? staticProfile.personality_tags : []),
+  ].slice(0, 8);
+  dom.chatRoleStaticTags.innerHTML = tags.length
+    ? tags.map((tag) => `<span class="chat-tag">${escapeHtml(tag)}</span>`).join("")
+    : '<span class="empty-inline">暂无标签</span>';
+
+  dom.chatRoleRecordList.innerHTML = records.length
+    ? records
+        .map(
+          (record) => `
+            <article class="chat-role-record-item">
+              <div class="chat-role-record-meta">
+                <span>E${record.episode}</span>
+                <span>${escapeHtml(record.scene || "未知场景")}</span>
+                <span>Turn ${record.turn}</span>
+                <span class="chat-role-record-kind">${escapeHtml(record.kind)}</span>
+              </div>
+              <div class="chat-role-record-content">${escapeHtml(record.content || "")}</div>
+            </article>
+          `
+        )
+        .join("")
+    : `<div class="empty-state">当前集还没有 ${escapeHtml(roleName)} 的记录。</div>`;
+}
+
 function escapeHtml(text) {
   return String(text ?? "")
     .replaceAll("&", "&amp;")
@@ -1144,9 +1304,9 @@ function groupEventsForChat(events) {
 
 function renderMessages() {
   dom.chatFeed.innerHTML = "";
-  const events = state.snapshot?.event_log || [];
+  const messages = getChatMessagesForRender();
 
-  if (!events.length) {
+  if (!messages.length) {
     const node = dom.messageTemplate.content.firstElementChild.cloneNode(true);
     node.classList.add("system");
     node.querySelector(".message-role").textContent = "SYSTEM";
@@ -1155,39 +1315,40 @@ function renderMessages() {
     return;
   }
 
-  const groups = groupEventsForChat(events);
-
-  groups.forEach((group) => {
+  messages.forEach((group) => {
     const node = dom.messageTemplate.content.firstElementChild.cloneNode(true);
     const roleEl = node.querySelector(".message-role");
     const bodyEl = node.querySelector(".message-body");
 
-    if (group.type === "compound") {
-      node.classList.add("dialogue");
-      roleEl.textContent = `${group.speaker || "SYSTEM"} · Turn ${group.step ?? "-"}`;
-      bodyEl.classList.add("compact");
+    node.classList.add("dialogue", "role-message");
+    const roleName = group.speaker_name || group.speaker_id || "SYSTEM";
+    const turn = group.turn ?? "-";
+    roleEl.innerHTML = `
+      <button class="avatar-btn" type="button" data-role-name="${escapeHtml(roleName)}" style="background:${roleAvatarTone(roleName)}" aria-label="查看 ${escapeHtml(roleName)} 角色卡">
+        <span>${escapeHtml(roleAvatarText(roleName))}</span>
+      </button>
+      <div class="message-role-copy">
+        <button class="message-role-name" type="button" data-role-name="${escapeHtml(roleName)}">${escapeHtml(roleName)}</button>
+        <span class="message-role-meta">Turn ${turn}</span>
+      </div>
+    `;
+    bodyEl.classList.add("compact");
 
-      const orderMap = { thought: 0, action: 1, dialogue: 2 };
-      const labelMap = {
-        thought: "内心想法",
-        action: "动作",
-        dialogue: "对白"
-      };
-      const sortedLines = [...group.lines].sort((a, b) => (orderMap[a.kind] ?? 99) - (orderMap[b.kind] ?? 99));
-      bodyEl.innerHTML = sortedLines
-        .map((line) => `
-          <div class="compound-line">
-            <span class="compound-label">${labelMap[line.kind] || line.kind}</span>
-            <span class="compound-text">${escapeHtml(line.content || "")}</span>
-          </div>
-        `)
-        .join("");
-    } else {
-      const event = group.event;
-      node.classList.add(event.kind || "system");
-      roleEl.textContent = formatEventLabel(event);
-      bodyEl.textContent = event.content || "";
-    }
+    const orderMap = { thought: 0, action: 1, dialogue: 2 };
+    const labelMap = {
+      thought: "内心想法",
+      action: "动作",
+      dialogue: "对白"
+    };
+    const sortedLines = [...(group.segments || [])].sort((a, b) => (orderMap[a.kind] ?? 99) - (orderMap[b.kind] ?? 99));
+    bodyEl.innerHTML = sortedLines
+      .map((line) => `
+        <div class="compound-line">
+          <span class="compound-label">${labelMap[line.kind] || line.kind}</span>
+          <span class="compound-text">${escapeHtml(line.content || "")}</span>
+        </div>
+      `)
+      .join("");
 
     dom.chatFeed.appendChild(node);
   });
@@ -1297,6 +1458,7 @@ function applySnapshot(snapshot) {
   renderOutline();
   renderMessages();
   renderMonitorFeed();
+  renderRoleCard();
   syncRuntimeStatus();
   updateStartDemoButton();
   updateRunToggleButton();
@@ -1321,6 +1483,7 @@ function resetSessionState() {
   renderOutline();
   renderMessages();
   renderMonitorFeed();
+  renderRoleCard();
   updateStartDemoButton();
   updateRunToggleButton();
   updateNextEpisodeButton();
@@ -1378,6 +1541,8 @@ window.bindFrontendEvents({
   handleRoleDesignerInput,
   handleRoleDesignerChange,
   handleRoleDesignerClick,
+  openRoleCard,
+  closeRoleCard,
   setApiPreview,
   syncStageNav,
   renderAllChips,

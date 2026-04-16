@@ -15,6 +15,8 @@
       handleRoleDesignerInput,
       handleRoleDesignerChange,
       handleRoleDesignerClick,
+      openRoleCard,
+      closeRoleCard,
       setApiPreview,
       resetSessionState,
       setStage,
@@ -92,6 +94,23 @@
     on("#previewStateBtn", "click", raPreviewCurrentState);
     on("#refreshStageBtn", "click", raRefreshStage);
     on("#resetSessionBtn", "click", resetSessionState);
+
+    if (dom.chatFeed) {
+      dom.chatFeed.addEventListener("click", (event) => {
+        const roleTarget = event.target.closest("[data-role-name]");
+        if (!roleTarget) return;
+        const roleName = String(roleTarget.dataset.roleName || "").trim();
+        if (!roleName) return;
+        openRoleCard(roleName);
+      });
+    }
+
+    if (dom.closeChatRoleCardBtn) {
+      dom.closeChatRoleCardBtn.addEventListener("click", closeRoleCard);
+    }
+    if (dom.chatRoleCardBackdrop) {
+      dom.chatRoleCardBackdrop.addEventListener("click", closeRoleCard);
+    }
 
     if (dom.stageSteps) {
       dom.stageSteps.forEach((button) => {

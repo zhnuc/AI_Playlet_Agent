@@ -217,9 +217,7 @@
             <span>角色演绎区</span>
             <div class="toolbar-actions">
               <span id="turnBadge">第 0 句</span>
-              <button class="primary-btn small" id="startDemo" type="button">开始第一轮推演</button>
               <button class="ghost-btn small hidden" id="nextEpisodeBtn" type="button">开始下一集</button>
-              <button class="ghost-btn small" id="refreshStageBtn" type="button">刷新快照</button>
             </div>
           </div>
           <div class="chat-feed" id="chatFeed"></div>
@@ -248,7 +246,7 @@
         </div>
 
         <div class="action-row">
-          <button class="primary-btn" id="runToggleBtn" type="button">继续推演</button>
+          <button class="primary-btn" id="runToggleBtn" type="button">开始推演</button>
         </div>
 
         <details class="control-advanced" id="advancedControls">
@@ -327,6 +325,42 @@
       <div class="message-body"></div>
     </article>
   </template>
+
+  <div class="modal-shell hidden" id="chatRoleCardShell" aria-hidden="true">
+    <div class="modal-backdrop" id="chatRoleCardBackdrop"></div>
+    <section class="modal-card role-card-modal" role="dialog" aria-modal="true" aria-labelledby="chatRoleCardTitle">
+      <div class="modal-head">
+        <div>
+          <p class="panel-kicker">角色卡</p>
+          <h2 id="chatRoleCardTitle">角色详情</h2>
+          <p id="chatRoleCardHint">当前集最近记录，最新在上</p>
+        </div>
+        <button class="icon-btn" id="closeChatRoleCardBtn" type="button" aria-label="关闭角色卡">✕</button>
+      </div>
+
+      <div class="chat-role-card-hero">
+        <div class="chat-role-avatar" id="chatRoleCardAvatar" aria-hidden="true">角</div>
+        <div>
+          <h3 id="chatRoleCardName"></h3>
+          <p class="chat-role-card-identity" id="chatRoleCardIdentity"></p>
+          <p class="chat-role-card-summary" id="chatRoleCardSummary"></p>
+        </div>
+      </div>
+
+      <section class="chat-role-card-section">
+        <h3>角色标签</h3>
+        <div class="chat-tag-wrap">
+          <p class="tag-group-title">静态标签</p>
+          <div class="chat-tag-list" id="chatRoleStaticTags"></div>
+        </div>
+      </section>
+
+      <section class="chat-role-card-section">
+        <h3>当前集最近记录</h3>
+        <div class="chat-role-record-list" id="chatRoleRecordList"></div>
+      </section>
+    </section>
+  </div>
 
   <div class="modal-shell hidden" id="roleDesignerModal" aria-hidden="true">
     <div class="modal-backdrop" data-close-role-modal="true"></div>

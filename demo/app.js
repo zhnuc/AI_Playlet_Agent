@@ -31,6 +31,28 @@ const roles = {
   }
 };
 
+const roleProfiles = Object.fromEntries(
+  Object.values(roles).map((role) => [
+    role.id,
+    {
+      character_id: role.id,
+      static_profile: {
+        name: role.name,
+        identity: role.identity,
+        appearance_tags: [...role.staticTags],
+        personality_tags: [],
+      },
+      dynamic_profile: {
+        current_goal: role.summary,
+        beliefs_about_others: {},
+        unresolved_hook: "",
+        episode_digest_public: role.dynamicTags.join("；"),
+        episode_digest_private: "",
+      },
+    },
+  ])
+);
+
 const episodes = {
   1: {
     title: "董事会会议室",
@@ -544,6 +566,28 @@ function buildHistoryRecords() {
 
 const historyRecords = buildHistoryRecords();
 
+function buildCurrentEpisodeRecordsByRole(episode = state.currentEpisode) {
+  const recordsByRole = {};
+  getVisibleMessages(episode).forEach((item) => {
+    if (item.type !== "role") return;
+    if (!recordsByRole[item.roleId]) recordsByRole[item.roleId] = [];
+    item.segments.forEach((segment, index) => {
+      recordsByRole[item.roleId].push({
+        event_id: `e${episode}_${item.turn}_${index}`,
+        episode,
+        scene: item.scene,
+        turn: item.turn,
+        kind: segment.kind,
+        content: segment.content,
+      });
+    });
+  });
+  Object.keys(recordsByRole).forEach((roleId) => {
+    recordsByRole[roleId].sort((left, right) => right.turn - left.turn);
+  });
+  return recordsByRole;
+}
+
 function getCurrentRole() {
   return roles[state.currentRoleId] || null;
 }
@@ -566,6 +610,7 @@ function getVisibleRoleRecords(roleId, episode) {
 
 function renderRoleCard() {
   const role = getCurrentRole();
+  const roleProfile = roleProfiles[state.currentRoleId];
   const isOpen = state.roleCardOpen && !!role;
   dom.roleCardShell.classList.toggle("hidden", !isOpen);
   dom.roleCardShell.setAttribute("aria-hidden", String(!isOpen));
@@ -574,18 +619,21 @@ function renderRoleCard() {
     return;
   }
 
-  const records = getVisibleRoleRecords(role.id, state.currentEpisode);
+  const recordsByRole = buildCurrentEpisodeRecordsByRole(state.currentEpisode);
+  const records = recordsByRole[role.id] || getVisibleRoleRecords(role.id, state.currentEpisode);
   const visibleRecords = state.recentExpanded ? records : records.slice(0, 5);
 
-  dom.roleCardTitle.textContent = `${role.name} · 角色卡`;
+  dom.roleCardTitle.textContent = `${roleProfile?.static_profile?.name || role.name} · 角色卡`;
   dom.roleCardAvatar.style.background = role.tone;
   dom.roleCardAvatar.textContent = role.initials;
-  dom.roleCardName.textContent = role.name;
-  dom.roleCardIdentity.textContent = role.identity;
-  dom.roleCardSummary.textContent = role.summary;
+  dom.roleCardName.textContent = roleProfile?.static_profile?.name || role.name;
+  dom.roleCardIdentity.textContent = roleProfile?.static_profile?.identity || role.identity;
+  dom.roleCardSummary.textContent = roleProfile?.dynamic_profile?.current_goal || role.summary;
   dom.recentRecordsHint.textContent = `第 ${state.currentEpisode} 集 · 最新在上`;
   dom.expandRecentBtn.classList.toggle("hidden", records.length <= 5 || state.recentExpanded);
-  dom.staticTagList.innerHTML = role.staticTags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("");
+  dom.staticTagList.innerHTML = (roleProfile?.static_profile?.appearance_tags || role.staticTags)
+    .map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`)
+    .join("");
   dom.dynamicTagList.innerHTML = role.dynamicTags.map((tag) => `<span class="tag dynamic">${escapeHtml(tag)}</span>`).join("");
 
   if (!visibleRecords.length) {
