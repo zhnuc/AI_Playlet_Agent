@@ -31,6 +31,7 @@
       raSendDirective,
       raRollbackScene,
       raExportArtifacts,
+      raGenerateStoryboard,
       raPreviewCurrentState,
       raRefreshStage
     } = deps;
@@ -91,6 +92,7 @@
     on("#sendDirective", "click", raSendDirective);
     on("#rollbackBtn", "click", raRollbackScene);
     on("#formatScript", "click", raExportArtifacts);
+    on("#generateStoryboardBtn", "click", raGenerateStoryboard);
     on("#previewStateBtn", "click", raPreviewCurrentState);
     on("#refreshStageBtn", "click", raRefreshStage);
     on("#resetSessionBtn", "click", resetSessionState);

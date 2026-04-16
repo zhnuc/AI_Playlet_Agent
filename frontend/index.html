@@ -299,6 +299,14 @@
               <button class="ghost-btn" id="downloadJsonBtn" type="button">下载 .json</button>
             </div>
           </article>
+          <article class="storyboard-preview">
+            <div class="storyboard-head">
+              <h3>分镜预览</h3>
+              <button class="ghost-btn small" id="generateStoryboardBtn" type="button">生成分镜</button>
+            </div>
+            <p id="storyboardStatus">还没有分镜，请先完成推演并点击“生成分镜”。</p>
+            <div id="storyboardList" class="storyboard-list"></div>
+          </article>
           <article class="api-card hidden">
             <h3>状态与 JSON 预览</h3>
             <code id="apiSnippet">等待请求...</code>

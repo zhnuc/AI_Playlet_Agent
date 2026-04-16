@@ -358,6 +358,27 @@ def create_app() -> FastAPI:
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    @app.post("/sessions/{session_id}/storyboard/generate")
+    def generate_storyboard(session_id: str, payload: dict[str, Any] | None = None):
+        payload = payload or {}
+        force_fallback = bool(payload.get("force_fallback", False))
+        planner_agent = None
+        if not force_fallback:
+            try:
+                planner_agent, _, _ = _build_agents()
+            except Exception:
+                # Agent init failures should degrade to fallback instead of blocking storyboard generation.
+                force_fallback = True
+        try:
+            result = service.generate_storyboard(
+                session_id,
+                planner_agent=planner_agent,
+                force_fallback=force_fallback,
+            )
+            return {"storyboard": result}
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     @app.get("/sessions/{session_id}/events")
     def stream_session_events(session_id: str):
         try:

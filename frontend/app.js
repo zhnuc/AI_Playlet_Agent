@@ -26,6 +26,8 @@ const state = {
   showInitialRoleHints: true,
   currentStage: 1,
   hasExportedArtifacts: false,
+  exportPayload: null,
+  storyboardPayload: null,
   hasTriggeredStartDemo: false,
   loadingDepth: 0,
   roleCardOpen: false,
@@ -82,6 +84,9 @@ const dom = {
   directorCommand: document.querySelector("#directorCommand"),
   targetRole: document.querySelector("#targetRole"),
   scriptOutput: document.querySelector("#scriptOutput"),
+  generateStoryboardBtn: document.querySelector("#generateStoryboardBtn"),
+  storyboardStatus: document.querySelector("#storyboardStatus"),
+  storyboardList: document.querySelector("#storyboardList"),
   apiSnippet: document.querySelector("#apiSnippet"),
   apiHint: document.querySelector("#apiHint"),
   messageTemplate: document.querySelector("#messageTemplate"),
@@ -594,6 +599,12 @@ function initializeDefaults() {
   dom.sceneInput.value = options.scene[0];
   dom.promptPreview.textContent = promptMap[state.selectedGenre];
   dom.scriptOutput.value = "还没有导出结果。先生成大纲并跑完一轮推演。";
+  if (dom.storyboardStatus) {
+    dom.storyboardStatus.textContent = "还没有分镜。请先推进至少 1 轮（出现对白/动作），再点击“生成分镜”。";
+  }
+  if (dom.storyboardList) {
+    dom.storyboardList.innerHTML = "";
+  }
   initializeRoleDrafts();
   renderRolePresetOptions();
   dom.roleComposerDisplay.classList.remove("hidden");
@@ -1088,6 +1099,35 @@ function renderOutline() {
   syncTopPanelHeights();
 }
 
+function renderStoryboard() {
+  if (!dom.storyboardList || !dom.storyboardStatus) return;
+
+  const board = state.storyboardPayload;
+  if (!board || !Array.isArray(board.shots) || !board.shots.length) {
+    dom.storyboardStatus.textContent = "还没有分镜。请先推进至少 1 轮（出现对白/动作），再点击“生成分镜”。";
+    dom.storyboardList.innerHTML = '<div class="main-role-empty">暂无分镜数据。</div>';
+    return;
+  }
+
+  const sourceLabel = board.source === "ai" ? "AI 生成" : "规则兜底";
+  dom.storyboardStatus.textContent = `第 ${board.episode || "-"} 集 · ${board.scene || "未命名场景"} · ${sourceLabel}`;
+
+  dom.storyboardList.innerHTML = board.shots
+    .map(
+      (shot) => `
+      <article class="monitor-card storyboard-item">
+        <p class="prompt-title">${escapeMarkup(shot.shot_id || "S--")} · Turn ${escapeMarkup(shot.turn || "-")}</p>
+        <p><strong>景别/机位：</strong>${escapeMarkup(shot.shot_type || "MS")} / ${escapeMarkup(shot.camera_move || "static")}</p>
+        <p><strong>角色：</strong>${escapeMarkup(shot.speaker || "无")}</p>
+        <p><strong>画面：</strong>${escapeMarkup(shot.visual || "")}</p>
+        <p><strong>对白焦点：</strong>${escapeMarkup(shot.dialogue_focus || "")}</p>
+        <p><strong>提示词：</strong>${escapeMarkup(shot.prompt_draft || "")}</p>
+      </article>
+    `
+    )
+    .join("");
+}
+
 function formatEventLabel(event) {
   const kindMap = {
     thought: "内心想法",
@@ -1458,6 +1498,7 @@ function applySnapshot(snapshot) {
   renderOutline();
   renderMessages();
   renderMonitorFeed();
+  renderStoryboard();
   renderRoleCard();
   syncRuntimeStatus();
   updateStartDemoButton();
@@ -1474,11 +1515,19 @@ function resetSessionState() {
   state.shouldContinue = false;
   state.isLooping = false;
   state.hasExportedArtifacts = false;
+  state.exportPayload = null;
+  state.storyboardPayload = null;
   state.hasTriggeredStartDemo = false;
   dom.sessionBadge.textContent = "未创建";
   setStatus("待机中");
   dom.outlineStatus.textContent = "还没有可用大纲";
   dom.scriptOutput.value = "还没有导出结果。先生成大纲并跑完一轮推演。";
+  if (dom.storyboardStatus) {
+    dom.storyboardStatus.textContent = "还没有分镜。请先推进至少 1 轮（出现对白/动作），再点击“生成分镜”。";
+  }
+  if (dom.storyboardList) {
+    dom.storyboardList.innerHTML = "";
+  }
   setApiPreview("当前还没有 session。", "等待请求...");
   renderOutline();
   renderMessages();
@@ -1507,6 +1556,7 @@ const runtimeActions = window.createRuntimeActions({
   getCurrentEpisodeNumber,
   renderMessages,
   renderMonitorFeed,
+  renderStoryboard,
   buildConfigOverride,
   showLoading,
   hideLoading
@@ -1523,6 +1573,7 @@ const raCutScene = runtimeActions.cutScene;
 const raSendDirective = runtimeActions.sendDirective;
 const raRollbackScene = runtimeActions.rollbackScene;
 const raExportArtifacts = runtimeActions.exportArtifacts;
+const raGenerateStoryboard = runtimeActions.generateStoryboard;
 const raPreviewCurrentState = runtimeActions.previewCurrentState;
 const raRefreshStage = runtimeActions.refreshStage;
 
@@ -1559,6 +1610,7 @@ window.bindFrontendEvents({
   raSendDirective,
   raRollbackScene,
   raExportArtifacts,
+  raGenerateStoryboard,
   raPreviewCurrentState,
   raRefreshStage
 });

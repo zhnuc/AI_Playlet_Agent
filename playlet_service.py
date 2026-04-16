@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 from typing import Any
 from uuid import uuid4
 
@@ -23,6 +24,7 @@ class SessionRecord:
     planner_review_state: PlannerReviewState = field(default_factory=PlannerReviewState)
     episode_session: EpisodeSession | None = None
     season_result: dict[str, Any] | None = None
+    storyboard_result: dict[str, Any] | None = None
 
     @property
     def planner_output(self) -> dict[str, Any] | None:
@@ -41,6 +43,44 @@ def build_default_agents() -> tuple[Planner_Agent, Role_Agent_Box, Summary_Agent
 
 class PlayletService:
     """统一管理创作 session。"""
+
+    ALLOWED_SHOT_TYPES = {"WS", "MS", "CU", "OTS", "ECU"}
+    ALLOWED_CAMERA_MOVES = {"static", "push", "pull", "pan", "tilt", "handheld"}
+
+    SHOT_TYPE_ALIASES = {
+        "wide": "WS",
+        "long": "WS",
+        "全景": "WS",
+        "远景": "WS",
+        "middle": "MS",
+        "medium": "MS",
+        "中景": "MS",
+        "close": "CU",
+        "closeup": "CU",
+        "特写": "CU",
+        "过肩": "OTS",
+        "over the shoulder": "OTS",
+        "ots": "OTS",
+        "extreme close": "ECU",
+        "极特写": "ECU",
+    }
+
+    CAMERA_MOVE_ALIASES = {
+        "固定": "static",
+        "静止": "static",
+        "static": "static",
+        "推进": "push",
+        "push": "push",
+        "拉远": "pull",
+        "pull": "pull",
+        "平移": "pan",
+        "摇镜": "pan",
+        "pan": "pan",
+        "俯仰": "tilt",
+        "tilt": "tilt",
+        "手持": "handheld",
+        "handheld": "handheld",
+    }
 
     def __init__(self):
         self.sessions: dict[str, SessionRecord] = {}
@@ -418,18 +458,212 @@ class PlayletService:
     def export_session(self, session_id: str) -> dict[str, Any]:
         session = self.get_session(session_id)
         if session.episode_session is not None:
-            return export_artifacts(
+            exports = export_artifacts(
                 session.episode_session.runtime_state,
                 session.episode_session.episode_plan,
                 season_summary=session.season_result["season_summary"] if session.season_result else None,
             )
+            if session.storyboard_result is None:
+                session.storyboard_result = self._build_storyboard_fallback(session.episode_session)
+            exports["storyboard"] = session.storyboard_result
+            return exports
         if session.season_result is not None:
             return {
                 "script": "",
                 "shotlist": {},
+                "storyboard": session.storyboard_result or {},
                 "season_summary": session.season_result["season_summary"],
             }
         raise ValueError("当前 session 还没有可导出的运行结果")
+
+    @classmethod
+    def _normalize_shot_type(cls, value: Any) -> str:
+        text = str(value or "").strip()
+        if not text:
+            return "MS"
+        upper = text.upper()
+        if upper in cls.ALLOWED_SHOT_TYPES:
+            return upper
+        lowered = text.lower()
+        for alias, mapped in cls.SHOT_TYPE_ALIASES.items():
+            if alias in lowered or alias in text:
+                return mapped
+        return "MS"
+
+    @classmethod
+    def _normalize_camera_move(cls, value: Any) -> str:
+        text = str(value or "").strip()
+        if not text:
+            return "static"
+        lowered = text.lower()
+        if lowered in cls.ALLOWED_CAMERA_MOVES:
+            return lowered
+        for alias, mapped in cls.CAMERA_MOVE_ALIASES.items():
+            if alias in lowered or alias in text:
+                return mapped
+        return "static"
+
+    @classmethod
+    def _build_storyboard_fallback(cls, runtime: EpisodeSession) -> dict[str, Any]:
+        events = [
+            event
+            for event in runtime.runtime_state.story.event_log
+            if event.episode == runtime.runtime_state.story.current_episode and event.kind in {"action", "dialogue"}
+        ]
+
+        shots: list[dict[str, Any]] = []
+        for index, event in enumerate(events, start=1):
+            default_shot_type = cls._normalize_shot_type("CU" if event.kind == "dialogue" else "MS")
+            shots.append(
+                {
+                    "shot_id": f"S{index:02d}",
+                    "turn": event.step,
+                    "speaker": event.speaker,
+                    "shot_type": default_shot_type,
+                    "camera_move": cls._normalize_camera_move("static"),
+                    "duration_sec": 3,
+                    "visual": f"{event.speaker}{event.content}",
+                    "dialogue_focus": event.content if event.kind == "dialogue" else "",
+                    "sound": "环境音",
+                    "prompt_draft": (
+                        f"{runtime.runtime_state.story.current_scene}，{event.speaker}，{default_shot_type}，"
+                        f"{event.content}，电影感，真实光影"
+                    ),
+                }
+            )
+
+        return {
+            "episode": runtime.runtime_state.story.current_episode,
+            "scene": runtime.runtime_state.story.current_scene,
+            "source": "fallback",
+            "shots": shots,
+        }
+
+    @classmethod
+    def _normalize_storyboard_output(cls, raw_payload: dict[str, Any], runtime: EpisodeSession) -> dict[str, Any]:
+        if not isinstance(raw_payload, dict):
+            raise ValueError("storyboard payload is not an object")
+
+        raw_shots = raw_payload.get("shots")
+        if not isinstance(raw_shots, list):
+            raise ValueError("storyboard payload missing shots list")
+
+        normalized_shots: list[dict[str, Any]] = []
+        for index, item in enumerate(raw_shots, start=1):
+            if not isinstance(item, dict):
+                continue
+            normalized_shots.append(
+                {
+                    "shot_id": str(item.get("shot_id", f"S{index:02d}")),
+                    "turn": int(item.get("turn") or index),
+                    "speaker": str(item.get("speaker", "")),
+                    "shot_type": cls._normalize_shot_type(item.get("shot_type", "MS")),
+                    "camera_move": cls._normalize_camera_move(item.get("camera_move", "static")),
+                    "duration_sec": max(1, int(item.get("duration_sec") or 3)),
+                    "visual": str(item.get("visual", "")).strip(),
+                    "dialogue_focus": str(item.get("dialogue_focus", "")).strip(),
+                    "sound": str(item.get("sound", "环境音")).strip(),
+                    "prompt_draft": str(item.get("prompt_draft", "")).strip(),
+                }
+            )
+
+        if not normalized_shots:
+            raise ValueError("storyboard payload has no valid shots")
+
+        return {
+            "episode": int(raw_payload.get("episode") or runtime.runtime_state.story.current_episode),
+            "scene": str(raw_payload.get("scene") or runtime.runtime_state.story.current_scene),
+            "source": "ai",
+            "shots": normalized_shots,
+        }
+
+    def generate_storyboard(
+        self,
+        session_id: str,
+        planner_agent: Planner_Agent | None = None,
+        force_fallback: bool = False,
+    ) -> dict[str, Any]:
+        session = self.get_session(session_id)
+        if session.episode_session is None:
+            raise ValueError("当前 session 还没有可用于分镜生成的运行结果")
+
+        runtime = session.episode_session
+        actionable_events = [
+            event
+            for event in runtime.runtime_state.story.event_log
+            if event.episode == runtime.runtime_state.story.current_episode and event.kind in {"action", "dialogue"}
+        ]
+        if not actionable_events:
+            raise ValueError("当前集还没有对白/动作事件，请先推进至少 1 轮后再生成分镜")
+
+        fallback_payload = self._build_storyboard_fallback(runtime)
+        if force_fallback or planner_agent is None:
+            session.storyboard_result = fallback_payload
+            return fallback_payload
+
+        events = [
+            {
+                "turn": event.step,
+                "speaker": event.speaker,
+                "kind": event.kind,
+                "content": event.content,
+            }
+            for event in runtime.runtime_state.story.event_log
+            if event.episode == runtime.runtime_state.story.current_episode and event.kind in {"action", "dialogue", "thought"}
+        ]
+
+        prompt = f"""
+你是短剧分镜导演。请基于给定剧情事件生成可拍摄分镜 JSON。
+仅输出 JSON，不要解释。每个镜头都要给出 shot_id、turn、speaker、shot_type、camera_move、duration_sec、visual、dialogue_focus、sound、prompt_draft。
+shot_type 只能使用：WS/MS/CU/OTS/ECU。
+camera_move 建议：static/push/pull/pan/tilt/handheld。
+
+输入：
+{json.dumps({
+    "episode": runtime.runtime_state.story.current_episode,
+    "scene": runtime.runtime_state.story.current_scene,
+    "episode_goal": runtime.episode_plan.get("global_plot", ""),
+    "hook": runtime.episode_plan.get("plot_twist_or_hook", ""),
+    "events": events,
+}, ensure_ascii=False)}
+
+输出格式：
+{{
+  "episode": 1,
+  "scene": "场景",
+  "shots": [
+    {{
+      "shot_id": "S01",
+      "turn": 1,
+      "speaker": "角色名",
+      "shot_type": "CU",
+      "camera_move": "push",
+      "duration_sec": 3,
+      "visual": "画面描述",
+      "dialogue_focus": "对白焦点",
+      "sound": "音效/环境",
+      "prompt_draft": "可直接用于文生图/视频的中文提示词"
+    }}
+  ]
+}}
+"""
+
+        try:
+            response = planner_agent.client.chat.completions.create(
+                model=planner_agent.model,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                temperature=0.2,
+            )
+            raw_text = response.choices[0].message.content
+            raw_payload = parse_json_response(raw_text)
+            normalized = self._normalize_storyboard_output(raw_payload, runtime)
+            session.storyboard_result = normalized
+            return normalized
+        except Exception:
+            fallback_payload["ai_failed"] = True
+            session.storyboard_result = fallback_payload
+            return fallback_payload
 
     def replay_events(self, session_id: str) -> list[dict[str, Any]]:
         session = self.get_session(session_id)

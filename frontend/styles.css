@@ -179,6 +179,7 @@ select:focus {
 .slot-label,
 .prompt-title,
 .script-preview h3,
+.storyboard-preview h3,
 .api-card h3,
 .outline-tree h3 {
   text-transform: uppercase;
@@ -223,6 +224,7 @@ select:focus {
 .monitor-card,
 .api-card,
 .script-preview,
+.storyboard-preview,
 .slot-reel,
 .outline-tree,
 .chat-stage {
@@ -1277,7 +1279,7 @@ input[type="number"] {
 
 .output-layout {
   display: grid;
-  grid-template-columns: 1.3fr 0.9fr;
+  grid-template-columns: 1.15fr 1fr;
   gap: 16px;
 }
 
@@ -1321,6 +1323,36 @@ input[type="number"] {
   display: grid;
   gap: 14px;
   align-content: start;
+}
+
+.storyboard-preview {
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.storyboard-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.storyboard-list {
+  display: grid;
+  gap: 10px;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.storyboard-item {
+  padding: 10px;
+}
+
+.storyboard-item p {
+  margin: 0;
+  line-height: 1.45;
 }
 
 .api-card code {

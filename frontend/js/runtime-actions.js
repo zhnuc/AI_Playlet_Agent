@@ -12,6 +12,7 @@
       getCurrentEpisodeNumber,
       renderMessages,
       renderMonitorFeed,
+      renderStoryboard,
       buildConfigOverride,
       showLoading,
       hideLoading
@@ -492,14 +493,76 @@
             });
             state.hasExportedArtifacts = true;
             state.exportPayload = payload;
+            if (payload.storyboard) {
+              state.storyboardPayload = payload.storyboard;
+            }
+            if (state.exportPayload && state.storyboardPayload) {
+              state.exportPayload.storyboard = state.storyboardPayload;
+            }
             setStage(4, { force: true });
             if (dom.scriptOutput) dom.scriptOutput.value = payload.script || "";
+            if (typeof renderStoryboard === "function") {
+              renderStoryboard();
+            }
             setApiPreview("导出完成", payload.shotlist || payload);
             setStatus("导出已完成");
           }
         );
       } catch (error) {
         setApiPreview("导出失败", { error: error.message });
+      }
+    }
+
+    async function generateStoryboard() {
+      if (!state.sessionId) {
+        setStatus("当前没有会话");
+        return;
+      }
+      try {
+        await withLoading(
+          {
+            title: "正在生成分镜",
+            hint: "系统会优先使用 AI 生成，失败后自动使用规则兜底。"
+          },
+          async () => {
+            let payload;
+            try {
+              payload = await request(`/sessions/${state.sessionId}/storyboard/generate`, {
+                method: "POST",
+                body: {
+                  force_fallback: false
+                }
+              });
+            } catch (primaryError) {
+              payload = await request(`/sessions/${state.sessionId}/storyboard/generate`, {
+                method: "POST",
+                body: {
+                  force_fallback: true
+                }
+              });
+              setApiPreview("AI 分镜失败，已自动切换规则兜底", { error: primaryError.message, fallback: payload });
+            }
+            state.storyboardPayload = payload.storyboard || null;
+            if (!state.exportPayload) {
+              state.exportPayload = {};
+            }
+            state.exportPayload.storyboard = state.storyboardPayload;
+            const shotCount = Array.isArray(state.storyboardPayload?.shots) ? state.storyboardPayload.shots.length : 0;
+            if (typeof renderStoryboard === "function") {
+              renderStoryboard();
+            }
+            setStage(4, { force: true });
+            setApiPreview("分镜生成完成", payload.storyboard || payload);
+            if (shotCount > 0) {
+              setStatus(`分镜已生成（${shotCount} 镜）`);
+            } else {
+              setStatus("未生成有效分镜：请先推进至少 1 轮（出现对白/动作）后重试");
+            }
+          }
+        );
+      } catch (error) {
+        setStatus(`分镜生成失败：${error.message}`);
+        setApiPreview("分镜生成失败", { error: error.message });
       }
     }
 
@@ -539,6 +602,7 @@
       sendDirective,
       rollbackScene,
       exportArtifacts,
+      generateStoryboard,
       previewCurrentState,
       refreshStage
     };

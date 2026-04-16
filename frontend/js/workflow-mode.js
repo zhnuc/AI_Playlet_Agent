@@ -263,7 +263,10 @@
       const downloadJsonBtn = document.querySelector("#downloadJsonBtn");
       if (downloadJsonBtn) {
         downloadJsonBtn.addEventListener("click", () => {
-          const payload = state.exportPayload || {};
+          const payload = {
+            ...(state.exportPayload || {}),
+            storyboard: state.storyboardPayload || state.exportPayload?.storyboard || null,
+          };
           const content = JSON.stringify(payload, null, 2);
           triggerDownload(content, `playlet_export_${ts()}.json`, "application/json;charset=utf-8");
         });
