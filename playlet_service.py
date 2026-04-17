@@ -339,6 +339,7 @@ class PlayletService:
             "outline_approved": session.planner_review_state.approved,
             "planner_output": session.planner_output,
             "role_names": list(session.runtime_config["character_roster"].keys()),
+            "character_roster": session.runtime_config.get("character_roster", {}),
         }
         if session.episode_session is None:
             return snapshot

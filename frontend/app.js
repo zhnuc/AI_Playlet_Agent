@@ -1161,6 +1161,168 @@ function roleAvatarTone(roleName) {
   return palette[sum % palette.length];
 }
 
+const bubbleStyleCatalog = [
+  { className: "bubble-style-01", family: "warm" },
+  { className: "bubble-style-02", family: "warm" },
+  { className: "bubble-style-03", family: "warm" },
+  { className: "bubble-style-04", family: "warm" },
+  { className: "bubble-style-05", family: "cool" },
+  { className: "bubble-style-06", family: "cool" },
+  { className: "bubble-style-07", family: "cool" },
+  { className: "bubble-style-08", family: "cool" },
+  { className: "bubble-style-09", family: "calm" },
+  { className: "bubble-style-10", family: "calm" },
+  { className: "bubble-style-11", family: "calm" },
+  { className: "bubble-style-12", family: "calm" },
+  { className: "bubble-style-13", family: "bold" },
+  { className: "bubble-style-14", family: "bold" },
+  { className: "bubble-style-15", family: "bold" },
+  { className: "bubble-style-16", family: "bold" },
+  { className: "bubble-style-17", family: "neutral" },
+  { className: "bubble-style-18", family: "neutral" },
+  { className: "bubble-style-19", family: "neutral" },
+  { className: "bubble-style-20", family: "neutral" },
+  { className: "bubble-style-21", family: "soft" },
+  { className: "bubble-style-22", family: "soft" },
+  { className: "bubble-style-23", family: "soft" },
+  { className: "bubble-style-24", family: "soft" }
+];
+
+function normalizeGenderToken(gender) {
+  const text = String(gender || "").trim();
+  if (!text) return "";
+  if (text.includes("男")) return "male";
+  if (text.includes("女")) return "female";
+  return "";
+}
+
+function getSpeakerGenderFromSnapshot(speaker) {
+  const name = String(speaker || "").trim();
+  if (!name) return "";
+  const roster = state.snapshot?.character_roster || state.snapshot?.characterRoster;
+  if (!roster || typeof roster !== "object") return "";
+  const card = roster[name];
+  if (!card || typeof card !== "object") return "";
+  return String(card.gender || "").trim();
+}
+
+function normalizeKeywordText(text) {
+  return String(text || "").toLowerCase();
+}
+
+function inferBubbleFamily(roleEntry) {
+  const position = String(roleEntry?.role_position || "supporting");
+  const gender = String(roleEntry?.gender || "");
+  const identity = normalizeKeywordText(roleEntry?.identity);
+  const personality = normalizeKeywordText((roleEntry?.personality_tags || []).join(" "));
+
+  const has = (needle) => identity.includes(needle) || personality.includes(needle);
+
+  if (position.includes("villain")) return "bold";
+  if (position.includes("female_lead")) return "warm";
+  if (position.includes("male_lead")) return "cool";
+
+  if (gender.includes("男")) return "cool";
+  if (gender.includes("女")) return "warm";
+
+  if (has("阴") || has("狠") || has("复仇") || has("城府") || has("算计") || has("冷血")) return "bold";
+  if (has("温") || has("治愈") || has("善良") || has("柔") || has("暖")) return "soft";
+  if (has("理性") || has("冷") || has("克制") || has("稳")) return "cool";
+  if (has("热") || has("张扬") || has("冲") || has("直") || has("强势")) return "warm";
+  if (has("佛") || has("淡") || has("平") || has("慢")) return "calm";
+
+  return "neutral";
+}
+
+function buildRoleEntriesForBubble() {
+  const usedNames = new Set();
+  const entries = [];
+
+  state.roleDrafts.forEach((role, index) => {
+    const baseName = String(role.name || `角色${index + 1}`).trim() || `角色${index + 1}`;
+    let finalName = baseName;
+    let counter = 2;
+    while (usedNames.has(finalName)) {
+      finalName = `${baseName}${counter}`;
+      counter += 1;
+    }
+    usedNames.add(finalName);
+
+    entries.push({
+      name: finalName,
+      role_position: role.role_position,
+      gender: inferGenderFromPosition(role.role_position, role.gender),
+      identity: String(role.identity || "").trim(),
+      personality_tags: normalizeTagList(role.personality_tags)
+    });
+  });
+
+  return entries;
+}
+
+function ensureBubbleStyleAssignments() {
+  const roleEntries = buildRoleEntriesForBubble();
+  state.bubbleRoleMetaByName = Object.fromEntries(roleEntries.map((entry) => [entry.name, entry]));
+  const used = new Set(Object.values(state.bubbleStyleByRole || {}));
+  const next = { ...(state.bubbleStyleByRole || {}) };
+
+  roleEntries
+    .sort((left, right) => getRolePositionMeta(left.role_position).priority - getRolePositionMeta(right.role_position).priority)
+    .forEach((entry) => {
+      if (next[entry.name]) return;
+      const family = inferBubbleFamily(entry);
+      const preferred = bubbleStyleCatalog.filter((item) => item.family === family && !used.has(item.className));
+      const fallback = bubbleStyleCatalog.filter((item) => !used.has(item.className));
+      const picked = preferred[0] || fallback[0];
+      if (!picked) return;
+      used.add(picked.className);
+      next[entry.name] = picked.className;
+    });
+
+  state.bubbleStyleByRole = next;
+}
+
+function getBubbleGenderClassForSpeaker(name) {
+  const speaker = String(name || "").trim();
+  if (!speaker) return "";
+  const snapshotGender = getSpeakerGenderFromSnapshot(speaker);
+  const meta = state.bubbleRoleMetaByName?.[speaker];
+  const token = normalizeGenderToken(snapshotGender || meta?.gender);
+  if (token === "male") return "bubble-gender-male";
+  if (token === "female") return "bubble-gender-female";
+  return "";
+}
+
+function getBubbleClassForSpeaker(name) {
+  const speaker = String(name || "").trim();
+  if (!speaker) return "";
+  if (!state.bubbleStyleByRole) state.bubbleStyleByRole = {};
+  if (!state.bubbleStyleByRole[speaker]) {
+    ensureBubbleStyleAssignments();
+    if (!state.bubbleStyleByRole[speaker]) {
+      const used = new Set(Object.values(state.bubbleStyleByRole));
+      const picked = bubbleStyleCatalog.find((item) => !used.has(item.className));
+      if (picked) {
+        state.bubbleStyleByRole[speaker] = picked.className;
+      }
+    }
+  }
+  return state.bubbleStyleByRole[speaker] || "";
+}
+
+function renderAvatar(el, speaker, styleClass) {
+  if (!el) return;
+  const name = String(speaker || "").trim();
+  const chars = Array.from(name);
+  const label = chars.length >= 3 ? chars.slice(-2).join("") : name;
+  el.textContent = label;
+  el.setAttribute("aria-label", name ? `${name} 头像` : "头像");
+  el.className = "chat-avatar";
+  if (styleClass) {
+    el.classList.add(styleClass);
+  }
+}
+
 function getChatMessagesForRender() {
   const snapshotMessages = state.snapshot?.chat_messages;
   if (Array.isArray(snapshotMessages) && snapshotMessages.length) {
@@ -1344,9 +1506,9 @@ function groupEventsForChat(events) {
 
 function renderMessages() {
   dom.chatFeed.innerHTML = "";
-  const messages = getChatMessagesForRender();
+  const events = state.snapshot?.event_log || [];
 
-  if (!messages.length) {
+  if (!events.length) {
     const node = dom.messageTemplate.content.firstElementChild.cloneNode(true);
     node.classList.add("system");
     node.querySelector(".message-role").textContent = "SYSTEM";
@@ -1355,40 +1517,70 @@ function renderMessages() {
     return;
   }
 
-  messages.forEach((group) => {
+  const groups = groupEventsForChat(events);
+
+  if (!state.bubbleStyleByRole) state.bubbleStyleByRole = {};
+  if (!state.bubbleRoleMetaByName) {
+    state.bubbleRoleMetaByName = Object.fromEntries(buildRoleEntriesForBubble().map((entry) => [entry.name, entry]));
+  }
+
+  groups.forEach((group) => {
     const node = dom.messageTemplate.content.firstElementChild.cloneNode(true);
     const roleEl = node.querySelector(".message-role");
     const bodyEl = node.querySelector(".message-body");
+    const avatarEl = node.querySelector(".chat-avatar");
 
-    node.classList.add("dialogue", "role-message");
-    const roleName = group.speaker_name || group.speaker_id || "SYSTEM";
-    const turn = group.turn ?? "-";
-    roleEl.innerHTML = `
-      <button class="avatar-btn" type="button" data-role-name="${escapeHtml(roleName)}" style="background:${roleAvatarTone(roleName)}" aria-label="查看 ${escapeHtml(roleName)} 角色卡">
-        <span>${escapeHtml(roleAvatarText(roleName))}</span>
-      </button>
-      <div class="message-role-copy">
-        <button class="message-role-name" type="button" data-role-name="${escapeHtml(roleName)}">${escapeHtml(roleName)}</button>
-        <span class="message-role-meta">Turn ${turn}</span>
-      </div>
-    `;
-    bodyEl.classList.add("compact");
+    if (group.type === "compound") {
+      const speaker = group.speaker || "SYSTEM";
+      const styleClass = getBubbleClassForSpeaker(speaker);
+      const genderClass = getBubbleGenderClassForSpeaker(speaker);
+      node.classList.add("chat-bubble");
+      if (styleClass) node.classList.add(styleClass);
+      if (genderClass) node.classList.add(genderClass);
+      roleEl.textContent = speaker;
+      renderAvatar(avatarEl, speaker, styleClass);
+      if (genderClass) avatarEl.classList.add(genderClass);
 
-    const orderMap = { thought: 0, action: 1, dialogue: 2 };
-    const labelMap = {
-      thought: "内心想法",
-      action: "动作",
-      dialogue: "对白"
-    };
-    const sortedLines = [...(group.segments || [])].sort((a, b) => (orderMap[a.kind] ?? 99) - (orderMap[b.kind] ?? 99));
-    bodyEl.innerHTML = sortedLines
-      .map((line) => `
-        <div class="compound-line">
-          <span class="compound-label">${labelMap[line.kind] || line.kind}</span>
-          <span class="compound-text">${escapeHtml(line.content || "")}</span>
+      const thought = group.lines.find((line) => line.kind === "thought")?.content || "";
+      const action = group.lines.find((line) => line.kind === "action")?.content || "";
+      const dialogue = group.lines.find((line) => line.kind === "dialogue")?.content || "";
+
+      bodyEl.classList.add("bubble");
+      bodyEl.innerHTML = `
+        <div class="bubble-main">${escapeHtml(dialogue)}</div>
+        <div class="bubble-meta">
+          ${action ? `<div class="bubble-meta-item"><span class="bubble-meta-label">动作</span><span class="bubble-meta-text">${escapeHtml(action)}</span></div>` : ""}
+          ${thought ? `<div class="bubble-meta-item"><span class="bubble-meta-label">内心</span><span class="bubble-meta-text">${escapeHtml(thought)}</span></div>` : ""}
         </div>
-      `)
-      .join("");
+      `;
+    } else {
+      const event = group.event;
+      const speaker = event.speaker || "SYSTEM";
+      const kind = event.kind || "system";
+
+      if (["thought", "action", "dialogue"].includes(kind)) {
+        const styleClass = getBubbleClassForSpeaker(speaker);
+        const genderClass = getBubbleGenderClassForSpeaker(speaker);
+        node.classList.add("chat-bubble");
+        if (styleClass) node.classList.add(styleClass);
+        if (genderClass) node.classList.add(genderClass);
+        roleEl.textContent = speaker;
+        renderAvatar(avatarEl, speaker, styleClass);
+        if (genderClass) avatarEl.classList.add(genderClass);
+        bodyEl.classList.add("bubble");
+        const labelMap = { action: "动作", thought: "内心" };
+        const content = escapeHtml(event.content || "");
+        if (kind === "dialogue") {
+          bodyEl.innerHTML = `<div class="bubble-main">${content}</div>`;
+        } else {
+          bodyEl.innerHTML = `<div class="bubble-main bubble-main-meta"><span class="bubble-meta-label">${labelMap[kind] || ""}</span><span class="bubble-meta-text">${content}</span></div>`;
+        }
+      } else {
+        node.classList.add(kind);
+        roleEl.textContent = formatEventLabel(event);
+        bodyEl.textContent = event.content || "";
+      }
+    }
 
     dom.chatFeed.appendChild(node);
   });
