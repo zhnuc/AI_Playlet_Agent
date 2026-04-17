@@ -33,7 +33,8 @@
       raExportArtifacts,
       raGenerateStoryboard,
       raPreviewCurrentState,
-      raRefreshStage
+      raRefreshStage,
+      raGenerateShotImage
     } = deps;
 
     const on = (selector, event, handler) => {
@@ -76,17 +77,6 @@
     on("#reviewOutlineBtn", "click", () => raReviewOutline().catch((error) => setApiPreview("审稿失败", { error: error.message })));
     on("#approveOutlineBtn", "click", () => raApproveOutline().catch((error) => setApiPreview("审核通过失败", { error: error.message })));
 
-    on("#startDemo", "click", async () => {
-      if (state.hasTriggeredStartDemo) return;
-      state.hasTriggeredStartDemo = true;
-      if (dom.startDemoBtn) dom.startDemoBtn.disabled = true;
-      try {
-        await raQuickStart();
-      } catch (error) {
-        setApiPreview("推演启动失败", { error: error.message });
-      }
-    });
-
     on("#runToggleBtn", "click", raToggleScene);
     on("#nextEpisodeBtn", "click", raStartNextEpisode);
     on("#sendDirective", "click", raSendDirective);
@@ -94,8 +84,18 @@
     on("#formatScript", "click", raExportArtifacts);
     on("#generateStoryboardBtn", "click", raGenerateStoryboard);
     on("#previewStateBtn", "click", raPreviewCurrentState);
-    on("#refreshStageBtn", "click", raRefreshStage);
     on("#resetSessionBtn", "click", resetSessionState);
+
+    if (dom.storyboardList) {
+      dom.storyboardList.addEventListener("click", (event) => {
+        const btn = event.target.closest(".shot-gen-img-btn");
+        if (!btn) return;
+        const shotId = btn.dataset.shotId;
+        const card = btn.closest(".storyboard-item");
+        const imageWrap = card && card.querySelector(".shot-image-wrap");
+        if (shotId && imageWrap) raGenerateShotImage(shotId, imageWrap, btn);
+      });
+    }
 
     if (dom.chatFeed) {
       dom.chatFeed.addEventListener("click", (event) => {

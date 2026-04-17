@@ -6,7 +6,7 @@ import json
 from typing import Any
 from uuid import uuid4
 
-from Agent_model import Planner_Agent, Role_Agent_Box, Summary_Agent, load_env
+from Agent_model import Planner_Agent, Role_Agent_Box, Summary_Agent, load_env, parse_json_response
 from formatter_agent import export_artifacts
 from input_adapter import build_free_mode_planner_output, build_runtime_config
 from main_loop import EpisodeSession, create_episode_session, run_season
@@ -557,14 +557,14 @@ class PlayletService:
                 {
                     "shot_id": str(item.get("shot_id", f"S{index:02d}")),
                     "turn": int(item.get("turn") or index),
-                    "speaker": str(item.get("speaker", "")),
+                    "speaker": str(item.get("speaker", "")).strip(),
                     "shot_type": cls._normalize_shot_type(item.get("shot_type", "MS")),
                     "camera_move": cls._normalize_camera_move(item.get("camera_move", "static")),
                     "duration_sec": max(1, int(item.get("duration_sec") or 3)),
-                    "visual": str(item.get("visual", "")).strip(),
-                    "dialogue_focus": str(item.get("dialogue_focus", "")).strip(),
-                    "sound": str(item.get("sound", "环境音")).strip(),
-                    "prompt_draft": str(item.get("prompt_draft", "")).strip(),
+                    "visual": (str(item.get("visual") or "") if item.get("visual") else "").strip(),
+                    "dialogue_focus": (str(item.get("dialogue_focus") or "") if item.get("dialogue_focus") else "").strip(),
+                    "sound": (str(item.get("sound") or "环境音") if item.get("sound") else "环境音").strip(),
+                    "prompt_draft": (str(item.get("prompt_draft") or "") if item.get("prompt_draft") else "").strip(),
                 }
             )
 
@@ -611,11 +611,11 @@ class PlayletService:
             }
             for event in runtime.runtime_state.story.event_log
             if event.episode == runtime.runtime_state.story.current_episode and event.kind in {"action", "dialogue", "thought"}
-        ]
+        ][-30:]
 
         prompt = f"""
 你是短剧分镜导演。请基于给定剧情事件生成可拍摄分镜 JSON。
-仅输出 JSON，不要解释。每个镜头都要给出 shot_id、turn、speaker、shot_type、camera_move、duration_sec、visual、dialogue_focus、sound、prompt_draft。
+仅输出 JSON，不要解释。每个镜头都要给出 shot_id、turn、speaker、shot_type、camera_move、duration_sec、visual、dialogue_focus、sound。
 shot_type 只能使用：WS/MS/CU/OTS/ECU。
 camera_move 建议：static/push/pull/pan/tilt/handheld。
 
@@ -642,8 +642,7 @@ camera_move 建议：static/push/pull/pan/tilt/handheld。
       "duration_sec": 3,
       "visual": "画面描述",
       "dialogue_focus": "对白焦点",
-      "sound": "音效/环境",
-      "prompt_draft": "可直接用于文生图/视频的中文提示词"
+      "sound": "音效/环境"
     }}
   ]
 }}
@@ -655,13 +654,17 @@ camera_move 建议：static/push/pull/pan/tilt/handheld。
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 temperature=0.2,
+                max_tokens=4096,
             )
             raw_text = response.choices[0].message.content
             raw_payload = parse_json_response(raw_text)
             normalized = self._normalize_storyboard_output(raw_payload, runtime)
             session.storyboard_result = normalized
             return normalized
-        except Exception:
+        except Exception as exc:
+            print(f"[DEBUG][storyboard_generate] failed with error: {exc}", flush=True)
+            import traceback
+            traceback.print_exc()
             fallback_payload["ai_failed"] = True
             session.storyboard_result = fallback_payload
             return fallback_payload
@@ -671,3 +674,41 @@ camera_move 建议：static/push/pull/pan/tilt/handheld。
         if session.episode_session is None:
             return []
         return list(session.episode_session.turn_trace)
+
+    def generate_shot_image(
+        self,
+        session_id: str,
+        shot_id: str,
+        model: str = "gemini-3.0-pro-image-preview",
+        aspect_ratio: str = "16:9",
+    ) -> dict[str, Any]:
+        import os
+
+        import requests
+        from dotenv import load_dotenv
+
+        load_dotenv()
+        session = self.get_session(session_id)
+        if session.storyboard_result is None:
+            raise ValueError("storyboard not generated yet")
+        shots = session.storyboard_result.get("shots", [])
+        shot = next((s for s in shots if s["shot_id"] == shot_id), None)
+        if shot is None:
+            raise ValueError(f"shot {shot_id!r} not found")
+        prompt = shot.get("visual") or shot.get("prompt_draft") or ""
+        if not prompt:
+            raise ValueError(f"shot {shot_id!r} has no visual description")
+
+        api_key = os.environ.get("QINIU_API_KEY", "")
+        resp = requests.post(
+            "https://api.qnaigc.com/v1/images/generations",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={"model": model, "prompt": prompt, "n": 1, "image_config": {"aspect_ratio": aspect_ratio}},
+            timeout=60,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        images = data.get("data", [])
+        if not images:
+            raise ValueError("API returned no images")
+        return {"shot_id": shot_id, "b64_json": images[0]["b64_json"], "prompt": prompt}

@@ -566,6 +566,31 @@
       }
     }
 
+    async function generateShotImage(shotId, imageWrapEl, btnEl) {
+      if (!state.sessionId || !shotId) return;
+      btnEl.disabled = true;
+      btnEl.textContent = "生成中…";
+      try {
+        const payload = await request(`/sessions/${state.sessionId}/storyboard/shots/${encodeURIComponent(shotId)}/image`, {
+          method: "POST",
+          body: { aspect_ratio: "16:9" }
+        });
+        if (payload.b64_json) {
+          const img = document.createElement("img");
+          img.src = `data:image/png;base64,${payload.b64_json}`;
+          img.style.cssText = "width:100%;border-radius:6px;margin-top:8px;";
+          imageWrapEl.innerHTML = "";
+          imageWrapEl.appendChild(img);
+          btnEl.textContent = "重新生成";
+        }
+      } catch (err) {
+        btnEl.textContent = "生成失败，重试";
+        setStatus(`生图失败 (${shotId})：${err.message}`);
+      } finally {
+        btnEl.disabled = false;
+      }
+    }
+
     function previewCurrentState() {
       setApiPreview("Current frontend snapshot", {
         sessionId: state.sessionId,
@@ -603,6 +628,7 @@
       rollbackScene,
       exportArtifacts,
       generateStoryboard,
+      generateShotImage,
       previewCurrentState,
       refreshStage
     };

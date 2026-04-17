@@ -379,6 +379,22 @@ def create_app() -> FastAPI:
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    @app.post("/sessions/{session_id}/storyboard/shots/{shot_id}/image")
+    def generate_shot_image(session_id: str, shot_id: str, payload: dict[str, Any] | None = None):
+        payload = payload or {}
+        try:
+            result = service.generate_shot_image(
+                session_id,
+                shot_id,
+                model=payload.get("model", "gemini-3.0-pro-image-preview"),
+                aspect_ratio=payload.get("aspect_ratio", "16:9"),
+            )
+            return result
+        except Exception as exc:
+            print(f"[DEBUG][shot_image] {exc}", flush=True)
+            import traceback; traceback.print_exc()
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     @app.get("/sessions/{session_id}/events")
     def stream_session_events(session_id: str):
         try:

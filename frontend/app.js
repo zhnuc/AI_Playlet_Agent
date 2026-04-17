@@ -1115,13 +1115,14 @@ function renderStoryboard() {
   dom.storyboardList.innerHTML = board.shots
     .map(
       (shot) => `
-      <article class="monitor-card storyboard-item">
+      <article class="monitor-card storyboard-item" data-shot-id="${escapeMarkup(shot.shot_id || "")}">
         <p class="prompt-title">${escapeMarkup(shot.shot_id || "S--")} · Turn ${escapeMarkup(shot.turn || "-")}</p>
         <p><strong>景别/机位：</strong>${escapeMarkup(shot.shot_type || "MS")} / ${escapeMarkup(shot.camera_move || "static")}</p>
         <p><strong>角色：</strong>${escapeMarkup(shot.speaker || "无")}</p>
         <p><strong>画面：</strong>${escapeMarkup(shot.visual || "")}</p>
         <p><strong>对白焦点：</strong>${escapeMarkup(shot.dialogue_focus || "")}</p>
-        <p><strong>提示词：</strong>${escapeMarkup(shot.prompt_draft || "")}</p>
+        <div class="shot-image-wrap"></div>
+        <button class="ghost-btn small shot-gen-img-btn" type="button" data-shot-id="${escapeMarkup(shot.shot_id || "")}">生成图像</button>
       </article>
     `
     )
@@ -1317,6 +1318,7 @@ function renderAvatar(el, speaker, styleClass) {
   const label = chars.length >= 3 ? chars.slice(-2).join("") : name;
   el.textContent = label;
   el.setAttribute("aria-label", name ? `${name} 头像` : "头像");
+  el.setAttribute("data-role-name", name);
   el.className = "chat-avatar";
   if (styleClass) {
     el.classList.add(styleClass);
@@ -1766,6 +1768,7 @@ const raSendDirective = runtimeActions.sendDirective;
 const raRollbackScene = runtimeActions.rollbackScene;
 const raExportArtifacts = runtimeActions.exportArtifacts;
 const raGenerateStoryboard = runtimeActions.generateStoryboard;
+const raGenerateShotImage = runtimeActions.generateShotImage;
 const raPreviewCurrentState = runtimeActions.previewCurrentState;
 const raRefreshStage = runtimeActions.refreshStage;
 
@@ -1803,6 +1806,7 @@ window.bindFrontendEvents({
   raRollbackScene,
   raExportArtifacts,
   raGenerateStoryboard,
+  raGenerateShotImage,
   raPreviewCurrentState,
   raRefreshStage
 });
