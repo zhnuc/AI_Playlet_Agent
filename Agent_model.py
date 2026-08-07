@@ -297,6 +297,26 @@ class Muilty_Agent_Box(Role_Agent_Box):
     """兼容旧命名，内部复用新的角色 agent 调用器。"""
 
 
+def resolve_scene_roles(scene_roles: list, character_roster: dict) -> dict:
+    """确保大纲 scene_roles 中的角色在 character_roster 中存在。
+    若角色不存在，则自动创建基础占位角色，避免剧本推演时访问 KeyError 导致 400 错误。
+    """
+    resolved_roster = character_roster.copy()
+    for role_name in scene_roles:
+        if role_name not in resolved_roster:
+            resolved_roster[role_name] = {
+                "char_id": -1,
+                "role_type": "配角",
+                "gender": "未知",
+                "age": 0,
+                "identity": "大纲生成角色",
+                "appearance_tags": [],
+                "personality_tags": [],
+                "catchphrase": "",
+            }
+    return resolved_roster
+
+
 if __name__ == "__main__":
     from prompt import build_planner_agent_prompt
 
